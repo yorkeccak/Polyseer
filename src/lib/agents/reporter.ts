@@ -1,9 +1,9 @@
 import { generateText } from 'ai';
-import { getPolarTrackedModel } from '../polar-llm-strategy';
+import { openai } from '@ai-sdk/openai';
 import { InfluenceItem, ClusterMeta, Evidence } from '../forecasting/types';
 
-// Get model dynamically to use current context
-const getModel = () => getPolarTrackedModel('gpt-5-mini');
+// Model helper
+const getModel = () => openai('gpt-4o-mini');
 
 export async function reporterAgent(
   question: string,

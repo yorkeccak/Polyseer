@@ -28,9 +28,6 @@ export type ThemeSwitcherProps = {
   onChange?: (theme: 'light' | 'dark' | 'system') => void;
   defaultValue?: 'light' | 'dark' | 'system';
   className?: string;
-  requiresSubscription?: boolean;
-  hasSubscription?: boolean;
-  onUpgradeClick?: () => void;
   userId?: string;
   sessionId?: string;
   tier?: string;
@@ -41,9 +38,6 @@ export const ThemeSwitcher = ({
   onChange,
   defaultValue = 'light',
   className,
-  requiresSubscription = false,
-  hasSubscription = false,
-  onUpgradeClick,
   userId,
   sessionId,
   tier,
@@ -63,55 +57,17 @@ export const ThemeSwitcher = ({
   const [mounted, setMounted] = useState(false);
 
   const handleThemeClick = useCallback(
-    async (themeKey: 'light' | 'dark' | 'system') => {
-      // Check if dark mode or system theme requires subscription
-      if (requiresSubscription && (themeKey === 'dark' || themeKey === 'system') && !hasSubscription) {
-        onUpgradeClick?.();
-        return;
-      }
-
+    (themeKey: 'light' | 'dark' | 'system') => {
       const previousTheme = theme || defaultValue;
-      
-      // Track usage via server action - only for theme changes (not initial load)
-      if (previousTheme !== themeKey && mounted) {
-        try {
-          console.log('[ThemeSwitcher] Tracking theme change:', { 
-            from: previousTheme, 
-            to: themeKey, 
-            tier,
-            userId: userId ? 'present' : 'missing'
-          });
-          
-          const response = await fetch('/api/usage/dark-mode', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fromTheme: previousTheme,
-              toTheme: themeKey,
-              sessionId: sessionId || `session_${Date.now()}`
-            })
-          });
 
-          if (!response.ok) {
-            const error = await response.json();
-            console.error('[ThemeSwitcher] Usage tracking failed:', error);
-          } else {
-            const result = await response.json();
-            console.log('[ThemeSwitcher] Usage tracked successfully:', result);
-          }
-        } catch (error) {
-          console.error('[ThemeSwitcher] Error tracking dark mode switch:', error);
-        }
-      }
-
-      // Apply the theme change
+      // Apply the theme change IMMEDIATELY
       setTheme(themeKey);
-      
+
       // Apply to document root for CSS
       if (typeof window !== 'undefined') {
         const root = window.document.documentElement;
         root.classList.remove('light', 'dark');
-        
+
         if (themeKey === 'system') {
           const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
           root.classList.add(systemTheme);
@@ -119,21 +75,38 @@ export const ThemeSwitcher = ({
           root.classList.add(themeKey);
         }
       }
+
+      // Fire-and-forget analytics - don't block UI
+      if (previousTheme !== themeKey && mounted) {
+        fetch('/api/usage/dark-mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fromTheme: previousTheme,
+            toTheme: themeKey,
+            sessionId: sessionId || `session_${Date.now()}`
+          })
+        }).catch(() => {
+          // Silently ignore tracking errors
+        });
+      }
     },
-    [setTheme, requiresSubscription, hasSubscription, onUpgradeClick, theme, defaultValue, sessionId, tier, userId, mounted]
+    [setTheme, theme, defaultValue, sessionId, mounted]
   );
 
   // Prevent hydration mismatch and initialize theme
   useEffect(() => {
     setMounted(true);
-    
-    // Initialize theme on mount
+  }, []);
+
+  // Apply theme class whenever theme changes
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const root = window.document.documentElement;
       const currentTheme = theme || defaultValue;
-      
+
       root.classList.remove('light', 'dark');
-      
+
       if (currentTheme === 'system') {
         const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         root.classList.add(systemTheme);
@@ -156,20 +129,16 @@ export const ThemeSwitcher = ({
     >
       {themes.map(({ key, icon: Icon, label }) => {
         const isActive = theme === key;
-        const isRestrictedTheme = key === 'dark' || key === 'system';
-        const isDisabled = requiresSubscription && isRestrictedTheme && !hasSubscription;
 
         return (
           <button
             aria-label={label}
             className={cn(
-              'relative h-6 w-6 rounded-full transition-opacity',
-              isDisabled ? 'cursor-not-allowed opacity-50 hover:opacity-60' : 'hover:bg-muted/50'
+              'relative h-6 w-6 rounded-full transition-opacity hover:bg-muted/50'
             )}
             key={key}
             onClick={() => handleThemeClick(key as 'light' | 'dark' | 'system')}
             type="button"
-            disabled={isDisabled}
           >
             {isActive && (
               <motion.div
@@ -181,8 +150,7 @@ export const ThemeSwitcher = ({
             <Icon
               className={cn(
                 'relative z-10 m-auto h-4 w-4',
-                isActive ? 'text-foreground' : 'text-muted-foreground',
-                isDisabled && 'opacity-50'
+                isActive ? 'text-foreground' : 'text-muted-foreground'
               )}
             />
           </button>

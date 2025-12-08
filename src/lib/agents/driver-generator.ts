@@ -1,10 +1,9 @@
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
-import { getPolarTrackedModel } from '../polar-llm-strategy';
 
-// Get model dynamically to use current context
-const getModelSmall = () => getPolarTrackedModel('gpt-5-mini');
+// Model helper
+const getModelSmall = () => openai('gpt-4o-mini');
 
 const DriversSchema = z.object({
   drivers: z.array(z.string()).min(3).max(5).describe('Key factors that could influence the outcome (3-8 concise factors)'),

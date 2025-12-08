@@ -2,10 +2,9 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import { openai } from '@ai-sdk/openai';
 import { Evidence } from '../forecasting/types';
-import { getPolarTrackedModel } from '../polar-llm-strategy';
 
-// Get model dynamically to use current context
-const getModel = () => getPolarTrackedModel('gpt-5');
+// Model helper
+const getModel = () => openai('gpt-4o');
 
 export const CritiqueSchema = z.object({
   missing: z.array(z.string()).describe('missed disconfirming evidence or failure modes'),
@@ -14,7 +13,7 @@ export const CritiqueSchema = z.object({
   followUpSearches: z.array(z.object({
     query: z.string().describe('specific search query to fill gaps'),
     rationale: z.string().describe('why this search is needed'),
-    side: z.enum(['FOR', 'AGAINST', 'NEUTRAL']).describe('which side this search targets')
+    side: z.enum(['FOR', 'AGAINST', 'NEUTRAL', 'BOTH']).describe('which side this search targets')
   })).max(10).describe('targeted searches to fill identified gaps'),
   correlationAdjustments: z.record(z.string(), z.number().min(0).max(1)).describe('suggested correlation adjustments for evidence clusters'),
   confidenceIssues: z.array(z.string()).describe('factors that should reduce confidence in the forecast')

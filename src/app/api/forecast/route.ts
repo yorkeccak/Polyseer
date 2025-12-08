@@ -1,70 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runPolymarketForecastPipeline, runUnifiedForecastPipeline } from '@/lib/agents/orchestrator';
 import { createClient } from '@/utils/supabase/server';
-import { checkUsageLimit, decrementAnalysisCount, setAnalysisContext, clearAnalysisContext } from '@/lib/usage-tracking';
 import { createAnalysisSession, completeAnalysisSession, failAnalysisSession } from '@/lib/analysis-session';
-import { setLLMContext, clearLLMContext } from '@/lib/polar-llm-strategy';
-import { canAnonymousUserQuery, incrementAnonymousUsage } from '@/lib/anonymous-usage';
 import { parseMarketUrl, isValidMarketUrl } from '@/lib/tools/market-url-parser';
+import { setValyuContext, clearValyuContext } from '@/lib/tools/valyu_search';
 
 export const maxDuration = 800;
 
 export async function POST(req: NextRequest) {
   let sessionId: string | null = null;
-  
+
   try {
-    // Authenticate user
+    // Authenticate user - required for all analyses (Sign in with Valyu)
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    let userData: any = null;
-    let isAnonymous = false;
-
     if (!user) {
-      // Handle anonymous user
-      isAnonymous = true;
-      
-      // Check anonymous usage limits
-      const { canProceed, reason } = await canAnonymousUserQuery();
-      if (!canProceed) {
-        return NextResponse.json(
-          { error: reason || 'Daily limit exceeded for anonymous users' },
-          { status: 403 }
-        );
-      }
-    } else {
-      // Handle authenticated user
-      console.log('[Forecast API] Authenticated user ID:', user.id)
-      console.log('[Forecast API] User email:', user.email)
-      
-      // Get user data including subscription info
-      const { data: fetchedUserData, error: fetchError } = await supabase
-        .from('users')
-        .select('polar_customer_id, subscription_tier, subscription_status, analyses_remaining')
-        .eq('id', user.id)
-        .single();
-      
-      console.log('[Forecast API] Database query result:', fetchedUserData)
-      console.log('[Forecast API] Database query error:', fetchError)
-
-      if (!fetchedUserData) {
-        return NextResponse.json(
-          { error: 'User profile not found' },
-          { status: 404 }
-        );
-      }
-
-      userData = fetchedUserData;
-
-      // Check usage limits for authenticated users
-      const { canProceed, reason } = await checkUsageLimit(user.id);
-      if (!canProceed) {
-        return NextResponse.json(
-          { error: reason || 'Usage limit exceeded' },
-          { status: 403 }
-        );
-      }
+      return NextResponse.json(
+        { error: 'Please sign in with Valyu to analyze markets' },
+        { status: 401 }
+      );
     }
+
+    console.log('[Forecast API] Authenticated user ID:', user.id)
+    console.log('[Forecast API] User email:', user.email)
 
     const body = await req.json();
     const {
@@ -73,8 +32,21 @@ export async function POST(req: NextRequest) {
       drivers = [],
       historyInterval = '1d',
       withBooks = true,
-      withTrades = false
+      withTrades = false,
+      valyuAccessToken, // Valyu OAuth token for API calls - REQUIRED
     } = body;
+
+    // Valyu token is required for all analyses
+    if (!valyuAccessToken) {
+      return NextResponse.json(
+        { error: 'Valyu connection required. Please sign in with Valyu to analyze markets.' },
+        { status: 401 }
+      );
+    }
+
+    // Set Valyu context for tools to use
+    setValyuContext(valyuAccessToken);
+    console.log('[Forecast API] Valyu access token set for user API calls');
 
     // Determine which parameter was provided and validate
     let finalMarketUrl: string;
@@ -118,29 +90,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create analysis session (skip for anonymous users)
-    let session: any = null;
-    if (!isAnonymous && user) {
-      session = await createAnalysisSession(user.id, identifier);
-      sessionId = session.id;
-      
-      // Handle usage tracking based on user type
-      if (userData.subscription_tier === 'pay_per_use' && userData.polar_customer_id) {
-        // Set context for immediate usage tracking (for pay-per-use customers)
-        setAnalysisContext(user.id, userData.polar_customer_id); // For Valyu API tracking
-        setLLMContext(user.id, userData.polar_customer_id); // For LLM token tracking
-        console.log(`[Forecast] Set tracking context for pay-per-use customer: ${userData.polar_customer_id}`);
-      } else if (userData.subscription_tier === 'free' || !userData.subscription_tier) {
-        // For signed-in free users, increment cookie usage like anonymous users
-        await incrementAnonymousUsage();
-        console.log(`[Forecast] Signed-in free user used cookie-based daily query`);
-      }
-      // Subscription users don't need upfront usage tracking
-    } else {
-      // For anonymous users, increment usage count immediately
-      await incrementAnonymousUsage();
-      console.log(`[Forecast] Anonymous user used daily query`);
-    }
+    // Create analysis session for the authenticated user
+    // Pass the full URL so platform detection works correctly
+    const session = await createAnalysisSession(user.id, finalMarketUrl);
+    sessionId = session.id;
+    // Valyu API usage is handled via OAuth proxy (charged to user's org credits)
 
     // Create a ReadableStream for Server-Sent Events
     const stream = new ReadableStream({
@@ -161,11 +115,6 @@ export async function POST(req: NextRequest) {
           // Send initial connection event
           sendEvent({ type: 'connected', message: 'Starting analysis...', sessionId });
 
-          // Decrement analysis count for subscription users only
-          if (!isAnonymous && user && userData.subscription_tier === 'subscription') {
-            await decrementAnalysisCount(user.id);
-          }
-
           // Create progress callback for the orchestrator
           const onProgress = (step: string, details: any) => {
             // Store step for history
@@ -183,8 +132,10 @@ export async function POST(req: NextRequest) {
             }, 'progress');
           };
 
-          // Note: LLM token tracking is handled automatically by Polar LLMStrategy
-          // when models are wrapped with the strategy in the agent code
+          // Note: Valyu API usage is tracked via OAuth proxy when valyuAccessToken is set
+          // API calls will be charged to the user's Valyu organization credits
+
+          const startTime = Date.now();
 
           // Run unified forecasting pipeline with progress tracking (auto-detects platform)
           const forecastCard = await runUnifiedForecastPipeline({
@@ -195,18 +146,25 @@ export async function POST(req: NextRequest) {
             withTrades,
             onProgress,
             sessionId: sessionId || undefined,
-            customerId: !isAnonymous && userData.subscription_tier === 'pay_per_use' ? userData.polar_customer_id : undefined
           });
 
-          // Valyu usage is tracked immediately as calls are made
+          const durationSeconds = Math.round((Date.now() - startTime) / 1000);
 
-          // Complete the analysis session
+          // Complete the analysis session with all relevant data
           if (sessionId) {
             await completeAnalysisSession(
               sessionId,
-              JSON.stringify(forecastCard), // Convert to markdown report
+              forecastCard.markdownReport || JSON.stringify(forecastCard),
               analysisSteps,
-              forecastCard
+              forecastCard,
+              {
+                marketQuestion: forecastCard.question,
+                p0: forecastCard.p0,
+                pNeutral: forecastCard.pNeutral,
+                pAware: forecastCard.pAware,
+                drivers: forecastCard.drivers,
+                durationSeconds,
+              }
             );
           }
 
@@ -236,9 +194,8 @@ export async function POST(req: NextRequest) {
             timestamp: new Date().toISOString()
           }, 'error');
         } finally {
-          // Clear tracking contexts
-          clearAnalysisContext();
-          clearLLMContext();
+          // Clear Valyu context
+          clearValyuContext();
           controller.close();
         }
       }

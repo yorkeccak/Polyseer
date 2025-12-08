@@ -1,10 +1,9 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { openai } from '@ai-sdk/openai';
-import { getPolarTrackedModel } from '../polar-llm-strategy';
 
-// Get model dynamically to use current context
-const getModel = () => getPolarTrackedModel('gpt-5');
+// Model helper
+const getModel = () => openai('gpt-4o');
 
 export const PlanSchema = z.object({
   subclaims: z.array(z.string().min(5)).min(2).max(10).describe('Causal factors and pathways that could lead to the outcome'),

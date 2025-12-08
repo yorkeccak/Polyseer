@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChevronDown } from 'lucide-react'
 import { format } from 'date-fns'
+import ReactMarkdown from 'react-markdown'
 
 export default function AnalysisDetailPage() {
   const params = useParams()
@@ -83,72 +84,157 @@ export default function AnalysisDetailPage() {
 
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>{analysis.report?.market_question || 'Polymarket Analysis'}</CardTitle>
-            <CardDescription>
-              <div className="flex flex-col gap-2 mt-2">
-                <span>{analysis.market_url}</span>
-                <div className="flex gap-4 text-sm">
-                  <span>Started: {format(new Date(analysis.started_at), 'PPpp')}</span>
-                  <span>Completed: {format(new Date(analysis.completed_at), 'PPpp')}</span>
-                </div>
+            <div className="flex items-start gap-3">
+              {/* Platform badge */}
+              <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-800">
+                {analysis.platform === 'polymarket' ? (
+                  <img
+                    src="https://www.google.com/s2/favicons?domain=polymarket.com&sz=32"
+                    alt="Polymarket"
+                    className="w-6 h-6"
+                  />
+                ) : analysis.platform === 'kalshi' ? (
+                  <img
+                    src="https://www.google.com/s2/favicons?domain=kalshi.com&sz=32"
+                    alt="Kalshi"
+                    className="w-6 h-6"
+                  />
+                ) : (
+                  <span className="text-gray-500 text-sm font-bold">?</span>
+                )}
               </div>
-            </CardDescription>
+              <div className="flex-1">
+                <CardTitle className="text-xl">
+                  {analysis.market_question
+                    || analysis.forecast_card?.question
+                    || analysis.forecast_card?.market?.question
+                    || 'Market Analysis'}
+                </CardTitle>
+                <CardDescription>
+                  <div className="flex flex-col gap-2 mt-2">
+                    {analysis.market_url && (
+                      <a
+                        href={analysis.market_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-500 hover:underline truncate"
+                      >
+                        {analysis.market_url}
+                      </a>
+                    )}
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      {analysis.started_at && (
+                        <span>Started: {format(new Date(analysis.started_at), 'PPpp')}</span>
+                      )}
+                      {analysis.completed_at && (
+                        <span>Completed: {format(new Date(analysis.completed_at), 'PPpp')}</span>
+                      )}
+                      {analysis.duration_seconds && (
+                        <span>Duration: {Math.floor(analysis.duration_seconds / 60)}m {analysis.duration_seconds % 60}s</span>
+                      )}
+                    </div>
+                  </div>
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            {analysis.report && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {analysis.report.probability !== undefined && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Probability</p>
-                      <p className="text-2xl font-bold">
-                        {(analysis.report.probability * 100).toFixed(1)}%
-                      </p>
-                    </div>
-                  )}
-                  {analysis.report.confidence && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Confidence</p>
-                      <Badge variant="secondary" className="mt-1">
-                        {analysis.report.confidence}
-                      </Badge>
-                    </div>
-                  )}
-                  {analysis.valyu_cost && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">API Cost</p>
-                      <p className="text-lg font-semibold">
-                        ${analysis.valyu_cost.toFixed(4)}
-                      </p>
-                    </div>
-                  )}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Probability - check multiple sources including nested forecast_card.response */}
+                {(analysis.p_neutral !== undefined
+                  || analysis.forecast_card?.pNeutral !== undefined
+                  || analysis.forecast_card?.response?.finalProbabilities?.pNeutral !== undefined) && (
                   <div>
-                    <p className="text-sm text-muted-foreground">Status</p>
-                    <Badge variant="default" className="mt-1">
-                      {analysis.status}
+                    <p className="text-sm text-muted-foreground">Probability</p>
+                    <p className="text-2xl font-bold">
+                      {((analysis.p_neutral
+                        || analysis.forecast_card?.pNeutral
+                        || analysis.forecast_card?.response?.finalProbabilities?.pNeutral
+                        || 0) * 100).toFixed(1)}%
+                    </p>
+                  </div>
+                )}
+                {/* Market P0 */}
+                {(analysis.p0 !== undefined
+                  || analysis.forecast_card?.response?.finalProbabilities?.p0 !== undefined) && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Market Price (P0)</p>
+                    <p className="text-2xl font-bold">
+                      {((analysis.p0 || analysis.forecast_card?.response?.finalProbabilities?.p0 || 0) * 100).toFixed(1)}%
+                    </p>
+                  </div>
+                )}
+                {/* Valyu Cost */}
+                {analysis.valyu_cost !== undefined && analysis.valyu_cost > 0 && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">API Cost</p>
+                    <p className="text-lg font-semibold">
+                      ${analysis.valyu_cost.toFixed(4)}
+                    </p>
+                  </div>
+                )}
+                {/* Platform */}
+                {analysis.platform && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Platform</p>
+                    <Badge variant="secondary" className="mt-1 capitalize">
+                      {analysis.platform}
                     </Badge>
                   </div>
+                )}
+                {/* Status */}
+                <div>
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <Badge variant={analysis.status === 'completed' ? 'default' : 'destructive'} className="mt-1">
+                    {analysis.status}
+                  </Badge>
                 </div>
-
-                {analysis.report.summary && (
-                  <div>
-                    <h3 className="font-semibold mb-2">Summary</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {analysis.report.summary}
-                    </p>
-                  </div>
-                )}
-
-                {analysis.report.reasoning && (
-                  <div>
-                    <h3 className="font-semibold mb-2">Reasoning</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {analysis.report.reasoning}
-                    </p>
-                  </div>
-                )}
               </div>
-            )}
+
+              {/* Drivers - check multiple locations */}
+              {(() => {
+                const drivers = analysis.drivers
+                  || analysis.forecast_card?.drivers
+                  || analysis.forecast_card?.response?.drivers;
+                return drivers && Array.isArray(drivers) && drivers.length > 0 ? (
+                  <div>
+                    <h3 className="font-semibold mb-2">Key Drivers</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {drivers.map((driver: string, i: number) => (
+                        <Badge key={i} variant="outline">{driver}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Markdown Report - check multiple possible locations */}
+              {(analysis.markdown_report
+                || analysis.forecast_card?.markdownReport
+                || analysis.forecast_card?.response?.markdownReport) && (
+                <div>
+                  <h3 className="font-semibold mb-2">Analysis Report</h3>
+                  <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 p-4 rounded-lg max-h-[600px] overflow-y-auto">
+                    <ReactMarkdown>
+                      {analysis.markdown_report
+                        || analysis.forecast_card?.markdownReport
+                        || analysis.forecast_card?.response?.markdownReport}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Message */}
+              {analysis.error_message && (
+                <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
+                  <h3 className="font-semibold mb-2 text-red-700 dark:text-red-400">Error</h3>
+                  <p className="text-sm text-red-600 dark:text-red-300">
+                    {analysis.error_message}
+                  </p>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 

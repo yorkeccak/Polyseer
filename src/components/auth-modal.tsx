@@ -1,14 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { useAuthStore } from '@/lib/stores/use-auth-store'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Icons } from '@/components/ui/icons'
 
 interface AuthModalProps {
   open: boolean
@@ -16,14 +13,11 @@ interface AuthModalProps {
   defaultTab?: 'signin' | 'signup'
 }
 
-export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthModalProps) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [tab, setTab] = useState(defaultTab)
 
-  const { signIn, signUp, signInWithGoogle } = useAuthStore()
+  const { signInWithValyu } = useAuthStore()
 
   // Hide auth modal in development mode (default to development)
   const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE !== 'production'
@@ -31,188 +25,85 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
     return null
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleValyuSignIn = async () => {
     setError(null)
     setIsLoading(true)
 
     try {
-      const result = tab === 'signin' 
-        ? await signIn(email, password)
-        : await signUp(email, password)
+      const result = await signInWithValyu()
 
       if (result.error) {
         setError(result.error.message)
-      } else {
-        // Track successful auth event
-        if (typeof window !== 'undefined') {
-          import('@vercel/analytics').then(({ track }) => {
-            track(tab === 'signin' ? 'Sign In Success' : 'Sign Up Success', { 
-              method: 'email'
-            });
-          });
-        }
-        onOpenChange(false)
-        setEmail('')
-        setPassword('')
+        setIsLoading(false)
       }
+      // If successful, the user will be redirected to Valyu OAuth
+      // No need to close modal as page will redirect
     } catch (err) {
       setError('An unexpected error occurred')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleGoogleSignIn = async () => {
-    setError(null)
-    setIsLoading(true)
-
-    try {
-      const result = await signInWithGoogle()
-      if (result.error) {
-        setError(result.error.message)
-      } else {
-        // Track successful Google auth
-        if (typeof window !== 'undefined') {
-          import('@vercel/analytics').then(({ track }) => {
-            track('Sign In Success', { 
-              method: 'google'
-            });
-          });
-        }
-      }
-    } catch (err) {
-      setError('An unexpected error occurred')
-    } finally {
       setIsLoading(false)
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle>Welcome to the future.</DialogTitle>
+          <DialogTitle className="text-center text-xl">Sign in with Valyu</DialogTitle>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as 'signin' | 'signup')}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signin">Sign In</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
-          </TabsList>
+        <div className="space-y-5 py-4">
+          <p className="text-center text-sm text-muted-foreground leading-relaxed">
+            Valyu is the information backbone of Polyseer, giving our AI engine access to real-time data across web, academic, and proprietary sources.
+          </p>
 
-          <TabsContent value="signin" className="space-y-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="signin-email">Email</Label>
-                <Input
-                  id="signin-email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signin-password">Password</Label>
-                <Input
-                  id="signin-password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Signing in...' : 'Sign In'}
-              </Button>
-            </form>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-              </div>
+          {/* Free Credits Badge */}
+          <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <span className="text-xl">🎁</span>
+              <span className="text-green-600 dark:text-green-400 font-bold">$10 Free Credits</span>
             </div>
+            <p className="text-center text-xs text-muted-foreground">
+              New accounts get $10 in free search credits
+            </p>
+          </div>
 
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleGoogleSignIn}
-              disabled={isLoading}
-            >
-              <Icons.google className="mr-2 h-4 w-4" />
-              Google
-            </Button>
-          </TabsContent>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-          <TabsContent value="signup" className="space-y-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="signup-email">Email</Label>
-                <Input
-                  id="signup-email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isLoading}
+          <Button
+            onClick={handleValyuSignIn}
+            disabled={isLoading}
+            className="w-full h-12 bg-black hover:bg-gray-800 text-white font-medium"
+          >
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Connecting...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-3">
+                <span>Sign in with</span>
+                <Image
+                  src="/valyu.svg"
+                  alt="Valyu"
+                  width={60}
+                  height={20}
+                  className="h-5 w-auto invert"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-password">Password</Label>
-                <Input
-                  id="signup-password"
-                  type="password"
-                  placeholder="Create a password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Creating account...' : 'Sign Up'}
-              </Button>
-            </form>
+              </span>
+            )}
+          </Button>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleGoogleSignIn}
-              disabled={isLoading}
-            >
-              <Icons.google className="mr-2 h-4 w-4" />
-              Google
-            </Button>
-          </TabsContent>
-        </Tabs>
+          <p className="text-center text-xs text-muted-foreground">
+            Don&apos;t have an account? You can create one during sign-in.
+          </p>
+        </div>
       </DialogContent>
     </Dialog>
   )

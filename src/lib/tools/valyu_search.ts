@@ -1,8 +1,28 @@
 import { z } from "zod";
 import { tool } from "ai";
-import { Valyu, SearchType as ValyuSearchSDKType } from "valyu-js";
-import { trackValyuUsageImmediate } from "../usage-tracking";
+import { SearchType as ValyuSearchSDKType } from "valyu-js";
 import { memoryService } from '@/lib/memory/weaviate-memory';
+
+// Valyu OAuth Proxy URL
+const VALYU_OAUTH_PROXY_URL = process.env.VALYU_OAUTH_PROXY_URL ||
+  `${process.env.VALYU_APP_URL || 'https://platform.valyu.ai'}/api/oauth/proxy`;
+
+// Global context for Valyu OAuth token (set at request level)
+let currentValyuContext: { accessToken?: string } = {};
+
+export function setValyuContext(accessToken?: string) {
+  currentValyuContext = { accessToken };
+  console.log(`[ValyuContext] Set access token: ${accessToken ? 'present' : 'none'}`);
+}
+
+export function clearValyuContext() {
+  currentValyuContext = {};
+  console.log('[ValyuContext] Cleared');
+}
+
+export function getValyuAccessToken(): string | undefined {
+  return currentValyuContext.accessToken;
+}
 
 // Types for Valyu search results
 export interface ValyuSearchResult {
@@ -19,6 +39,7 @@ interface ValyuSearchResponse {
   results?: ValyuSearchResult[];
   tx_id?: string;
   error?: string;
+  total_deduction_dollars?: number;
 }
 
 // Input schema for deep search
@@ -57,25 +78,56 @@ export type ValyuToolResult = {
   totalCost?: number; // Cost in dollars
 };
 
+/**
+ * Call Valyu API via OAuth proxy - requires user token
+ */
+async function callValyuApi(
+  path: string,
+  body: any,
+  valyuAccessToken?: string
+): Promise<ValyuSearchResponse> {
+  if (!valyuAccessToken) {
+    console.error('[callValyuApi] No Valyu access token - user must sign in with Valyu');
+    return {
+      success: false,
+      error: "Please sign in with Valyu to use search features",
+    };
+  }
+
+  // Use OAuth proxy - charges to user's org credits
+  console.log('[callValyuApi] Using OAuth proxy with user token');
+  const response = await fetch(VALYU_OAUTH_PROXY_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${valyuAccessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      path,
+      method: 'POST',
+      body,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    return {
+      success: false,
+      error: errorData.error || `Proxy request failed: ${response.status}`,
+    };
+  }
+
+  return response.json();
+}
+
 // Valyu DeepSearch Tool - Comprehensive search across multiple domains
 export const valyuDeepSearchTool = tool({
   description:
     "Search Valyu for real-time academic papers, web content, market data, etc. Use for specific, up-to-date information across various domains. Always cite sources using [Title](URL) format.",
   inputSchema: deepSearchInputSchema,
   execute: async ({ query, searchType, startDate }) => {
-    const VALYU_API_KEY = process.env.VALYU_API_KEY;
-    if (!VALYU_API_KEY) {
-      console.error("VALYU_API_KEY is not set.");
-      const errorResult: ValyuToolResult = {
-        success: false,
-        error: "Valyu API key not configured. Please set VALYU_API_KEY environment variable.",
-        query,
-        results: [],
-      };
-      return errorResult;
-    }
-
-    const valyu = new Valyu(VALYU_API_KEY);
+    // Get Valyu access token from global context (set at request level)
+    const valyuAccessToken = getValyuAccessToken();
 
     const searchTypeMap: { [key: string]: ValyuSearchSDKType } = {
       all: "all",
@@ -95,18 +147,26 @@ export const valyuDeepSearchTool = tool({
 
     try {
       console.log(
-        `[ValyuDeepSearchTool] Query: "${query}", LLM Type: ${searchType}, Valyu Type: ${mappedSearchType}, startDate=${startDate || defaultStart}`
+        `[ValyuDeepSearchTool] Query: "${query}", LLM Type: ${searchType}, Valyu Type: ${mappedSearchType}, startDate=${startDate || defaultStart}, hasToken=${!!valyuAccessToken}`
       );
-      const response = await valyu.search(
+
+      const requestBody = {
         query,
-        {
-          searchType: mappedSearchType,
-          maxNumResults: 8,
-          maxPrice: 50.0,
-          relevanceThreshold: 0.5,
-          startDate: startDate || defaultStart,
-        }
+        search_type: mappedSearchType,
+        max_num_results: 8,
+        max_price: 50.0,
+        relevance_threshold: 0.5,
+        start_date: startDate || defaultStart,
+      };
+      console.log('[ValyuDeepSearchTool] Request body:', JSON.stringify(requestBody));
+
+      const response = await callValyuApi(
+        '/v1/deepsearch',
+        requestBody,
+        valyuAccessToken
       );
+
+      console.log('[ValyuDeepSearchTool] Raw response:', JSON.stringify(response).slice(0, 500));
 
       if (!response.success) {
         console.error("[ValyuDeepSearchTool] API Error:", response.error);
@@ -120,20 +180,13 @@ export const valyuDeepSearchTool = tool({
       }
 
       const cost = response.total_deduction_dollars || 0;
+      const resultUrls = (response.results || []).map((r: any) => r.url).filter(Boolean);
       console.log(
         `[ValyuDeepSearchTool] Success. Results: ${response.results?.length}, TX_ID: ${response.tx_id}, Cost: $${cost}`
       );
-      
-      // Track cost immediately to Polar
-      if (cost > 0) {
-        trackValyuUsageImmediate(cost, query, 'deep_search').catch(err => 
-          console.error('[ValyuDeepSearchTool] Failed to track usage:', err)
-        );
-      }
-      
+      console.log(`[ValyuDeepSearchTool] URLs returned: ${resultUrls.slice(0, 5).join(', ')}${resultUrls.length > 5 ? '...' : ''}`);
+
       let results = response.results || [];
-      // Note: Date filtering is now handled server-side by the Valyu API using startDate in SearchOptions
-      // Client-side filtering removed since SearchResult doesn't include metadata with date information
 
       const toolResult: ValyuToolResult = {
         success: true,
@@ -142,6 +195,7 @@ export const valyuDeepSearchTool = tool({
         tx_id: response.tx_id,
         totalCost: cost,
       };
+
       // Optionally ingest into memory if enabled
       try {
         if (process.env.MEMORY_ENABLED === 'true' && toolResult.results.length > 0) {
@@ -173,20 +227,9 @@ export const valyuWebSearchTool = tool({
     "Perform a web search using Valyu for up-to-date information from the internet. Always cite sources using [Title](URL) format.",
   inputSchema: webSearchInputSchema,
   execute: async ({ query, startDate }) => {
-    const VALYU_API_KEY = process.env.VALYU_API_KEY;
-    if (!VALYU_API_KEY) {
-      console.error("VALYU_API_KEY is not set for web search.");
-      const errorResult: ValyuToolResult = {
-        success: false,
-        error: "Valyu API key not configured. Please set VALYU_API_KEY environment variable.",
-        query,
-        results: [],
-      };
-      return errorResult;
-    }
-    
-    const valyu = new Valyu(VALYU_API_KEY);
-    
+    // Get Valyu access token from global context (set at request level)
+    const valyuAccessToken = getValyuAccessToken();
+
     // Compute default startDate if LLM didn't pass one
     const days = Number(process.env.VALYU_DEFAULT_START_DAYS || 180);
     const defaultStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
@@ -194,18 +237,21 @@ export const valyuWebSearchTool = tool({
       .slice(0, 10);
 
     try {
-      console.log(`[ValyuWebSearchTool] Web Query: "${query}", startDate=${startDate || defaultStart}`);
-      const response = await valyu.search(
-        query,
+      console.log(`[ValyuWebSearchTool] Web Query: "${query}", startDate=${startDate || defaultStart}, hasToken=${!!valyuAccessToken}`);
+
+      const response = await callValyuApi(
+        '/v1/deepsearch',
         {
-          searchType: "web" as ValyuSearchSDKType,
-          maxNumResults: 8,
-          maxPrice: 30.0,
-          relevanceThreshold: 0.5,
-          startDate: startDate || defaultStart,
-        }
+          query,
+          search_type: 'web',
+          max_num_results: 8,
+          max_price: 30.0,
+          relevance_threshold: 0.5,
+          start_date: startDate || defaultStart,
+        },
+        valyuAccessToken
       );
-      
+
       if (!response.success) {
         console.error("[ValyuWebSearchTool] API Error:", response.error);
         const errorResult: ValyuToolResult = {
@@ -216,22 +262,13 @@ export const valyuWebSearchTool = tool({
         };
         return errorResult;
       }
-      
+
       const cost = response.total_deduction_dollars || 0;
       console.log(
         `[ValyuWebSearchTool] Success. Results: ${response.results?.length}, TX_ID: ${response.tx_id}, Cost: $${cost}`
       );
-      
-      // Track cost immediately to Polar
-      if (cost > 0) {
-        trackValyuUsageImmediate(cost, query, 'web_search').catch(err => 
-          console.error('[ValyuWebSearchTool] Failed to track usage:', err)
-        );
-      }
-      
+
       let results = response.results || [];
-      // Note: Date filtering is now handled server-side by the Valyu API using startDate in SearchOptions
-      // Client-side filtering removed since SearchResult doesn't include metadata with date information
 
       const toolResult: ValyuToolResult = {
         success: true,
@@ -240,6 +277,7 @@ export const valyuWebSearchTool = tool({
         tx_id: response.tx_id,
         totalCost: cost,
       };
+
       // Optionally ingest into memory if enabled
       try {
         if (process.env.MEMORY_ENABLED === 'true' && toolResult.results.length > 0) {

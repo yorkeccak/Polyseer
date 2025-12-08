@@ -19,8 +19,7 @@ export interface PolymarketOrchestratorOpts {
   withBooks?: boolean;                          // include order book data
   withTrades?: boolean;                         // include recent trades
   onProgress?: (step: string, details: any) => void;  // progress callback
-  sessionId?: string;                           // Session ID for cost tracking
-  customerId?: string;                          // Polar customer ID for LLM tracking
+  sessionId?: string;                           // Session ID for tracking
 }
 
 export interface UnifiedOrchestratorOpts {
@@ -31,20 +30,14 @@ export interface UnifiedOrchestratorOpts {
   withBooks?: boolean;                          // include order book data
   withTrades?: boolean;                         // include recent trades
   onProgress?: (step: string, details: any) => void;  // progress callback
-  sessionId?: string;                           // Session ID for cost tracking
-  customerId?: string;                          // Polar customer ID for LLM tracking
+  sessionId?: string;                           // Session ID for tracking
 }
 
 
 
 export async function runPolymarketForecastPipeline(opts: PolymarketOrchestratorOpts): Promise<ForecastCard> {
   const { onProgress } = opts;
-  
-  // Set LLM context if customer ID provided
-  if (opts.customerId) {
-    const { setLLMContext } = await import('../polar-llm-strategy');
-    setLLMContext(opts.sessionId || '', opts.customerId);
-  }
+
   const t0 = Date.now();
 
   // Step 1: Fetch complete market data early (no minimal fetch)
@@ -448,11 +441,6 @@ export async function runPolymarketForecastPipeline(opts: PolymarketOrchestrator
 export async function runUnifiedForecastPipeline(opts: UnifiedOrchestratorOpts): Promise<ForecastCard> {
   const { onProgress, marketUrl } = opts;
 
-  // Set LLM context if customer ID provided
-  if (opts.customerId) {
-    const { setLLMContext } = await import('../polar-llm-strategy');
-    setLLMContext(opts.sessionId || '', opts.customerId);
-  }
   const t0 = Date.now();
 
   // Step 1: Fetch market data (auto-detects platform from URL)

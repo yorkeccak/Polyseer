@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import HeroSection from "@/components/hero-section";
 import HighestROI from "@/components/highest-roi";
 import ResultPanel from "@/components/result-panel";
-import MonetizationStrip from "@/components/monetization-strip";
 import ShareModal from "@/components/share-modal";
 import TelegramBotModal from "@/components/telegram-bot-modal";
 import HowItWorksModal from "@/components/how-it-works-modal";
@@ -26,20 +25,19 @@ export default function Home() {
   const [howItWorksModalOpen, setHowItWorksModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   
-  const { user, initialized, refreshUser } = useAuthStore();
+  const { user, initialized } = useAuthStore();
   const router = useRouter();
 
   // Track home page visit
   useEffect(() => {
     if (typeof window !== 'undefined') {
       import('@vercel/analytics').then(({ track }) => {
-        track('Home Page Visited', { 
+        track('Home Page Visited', {
           userType: user ? 'authenticated' : 'anonymous',
-          tier: user?.subscription_tier || 'anonymous'
         });
       });
     }
-  }, [user?.subscription_tier]);
+  }, [user]);
 
   const handleAnalyze = async (url: string) => {
     // Check if user is authenticated
@@ -62,28 +60,16 @@ export default function Home() {
 
   // Skip loading screen on auth redirect or if already initialized
   useEffect(() => {
-    // Check if we're coming from auth callback or checkout
+    // Check if we're coming from auth callback
     const urlParams = new URLSearchParams(window.location.search);
     const fromAuth = urlParams.get('from_auth');
-    const checkoutSuccess = urlParams.get('checkout');
-    
+
     if (fromAuth || (initialized && user)) {
       // Skip loading screen if coming from auth or already logged in
       setIsLoading(false);
       setContentVisible(true);
     }
-    
-    // Handle checkout success
-    if (checkoutSuccess === 'success' && user) {
-      // Clean up URL
-      router.replace('/');
-      // Refresh user data to get updated subscription info
-      const intervals = [1000, 2000, 3000, 5000];
-      intervals.forEach(delay => {
-        setTimeout(() => refreshUser(), delay);
-      });
-    }
-  }, [initialized, user, router, refreshUser]);
+  }, [initialized, user]);
 
   return (
     <>
@@ -93,7 +79,7 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      <motion.div 
+      <motion.div
         className="relative h-screen overflow-hidden flex flex-col"
         initial={{ opacity: 0 }}
         animate={{ opacity: contentVisible ? 1 : 0 }}
@@ -122,8 +108,6 @@ export default function Home() {
             handleAnalyze(url);
           }, 100);
         }} />
-        
-        <MonetizationStrip />
       </motion.div>
 
       <ShareModal

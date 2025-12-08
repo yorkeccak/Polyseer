@@ -57,7 +57,32 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className="scroll-smooth light" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('theme');
+                  var root = document.documentElement;
+                  root.classList.remove('light', 'dark');
+                  if (theme === 'dark') {
+                    root.classList.add('dark');
+                  } else if (theme === 'system') {
+                    var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    root.classList.add(systemDark ? 'dark' : 'light');
+                  } else {
+                    root.classList.add('light');
+                  }
+                } catch (e) {
+                  document.documentElement.classList.add('light');
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${inter.variable} ${spaceGrotesk.variable} font-sans antialiased bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100`}
       >

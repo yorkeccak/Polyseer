@@ -21,24 +21,34 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  User, 
-  History, 
-  MessageSquare, 
-  Trash2, 
-  CreditCard, 
-  BarChart3, 
-  Monitor, 
+import {
+  User,
+  History,
+  MessageSquare,
+  Trash2,
+  ExternalLink,
+  Monitor,
   LogOut
 } from 'lucide-react';
 
 interface AnalysisSession {
   id: string;
   market_question?: string;
-  market_url: string;
-  completed_at: string;
+  market_url?: string;
+  platform?: 'polymarket' | 'kalshi' | 'unknown';
+  completed_at?: string;
   valyu_cost?: number;
+  p_neutral?: number;
+  p0?: number;
+  forecast_card?: {
+    question?: string;
+    pNeutral?: number;
+    market?: {
+      question?: string;
+    };
+  };
+  // Legacy support
+  polymarket_slug?: string;
   report?: {
     market_question?: string;
     probability?: number;
@@ -46,65 +56,69 @@ interface AnalysisSession {
   };
 }
 
+// Helper to detect platform from URL
+function getPlatformFromUrl(url: string | undefined | null): 'polymarket' | 'kalshi' | 'unknown' {
+  if (!url) return 'unknown';
+  if (url.includes('polymarket.com')) return 'polymarket';
+  if (url.includes('kalshi.com')) return 'kalshi';
+  return 'unknown';
+}
+
+
 export default function Header() {
   const [telegramModalOpen, setTelegramModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showSubscription, setShowSubscription] = useState(false);
   const [sessions, setSessions] = useState<AnalysisSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
-  const [loadingPortal, setLoadingPortal] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark' | 'system'>('light');
-  
+
   const pathname = usePathname();
   const router = useRouter();
   const isAnalysisPage = pathname === '/analysis';
   const user = useAuthStore((state) => state.user);
   const signOut = useAuthStore((state) => state.signOut);
-  
-  // Derived state for subscription info
-  const subscriptionTier = user?.subscription_tier || 'free';
-  const subscriptionStatus = user?.subscription_status || 'inactive';
-  const analysesRemaining = user?.analyses_remaining || 0;
-  const hasPolarCustomer = !!user?.polar_customer_id;
+
+  // User is a Valyu user if they have valyu_sub
+  const isValyuUser = !!user?.valyu_sub;
   const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE !== 'production';
-  
-  const tier = subscriptionTier === 'pay_per_use' ? 'Pay-per-use' : 
-               subscriptionTier === 'subscription' ? 'Unlimited' : 
-               subscriptionTier;
-               
-  const displayText = subscriptionTier === 'subscription' ? 
-                     `${analysesRemaining} analyses left` : 
-                     subscriptionStatus === 'active' ? 'Active' : 
-                     'Inactive';
+
+  const tier = isValyuUser ? 'Valyu' : 'Sign in';
 
   useEffect(() => {
     setMounted(true);
-    
+
     // Initialize theme from localStorage or default to light
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system' | null;
-      if (savedTheme) {
-        setCurrentTheme(savedTheme);
+      const themeToApply = savedTheme || 'light';
+      setCurrentTheme(themeToApply);
+
+      // Apply the theme class immediately
+      const root = window.document.documentElement;
+      root.classList.remove('light', 'dark');
+
+      if (themeToApply === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        root.classList.add(systemTheme);
       } else {
-        // Default to light theme
-        setCurrentTheme('light');
+        root.classList.add(themeToApply);
       }
     }
   }, []);
-  
+
   // Save theme changes to localStorage
   useEffect(() => {
     if (mounted && typeof window !== 'undefined') {
       localStorage.setItem('theme', currentTheme);
     }
   }, [currentTheme, mounted]);
-  
+
   // Fetch analysis history when dropdown opens
   const fetchAnalysisHistory = async () => {
     if (!user) return;
-    
+
     setLoadingSessions(true);
     try {
       const response = await fetch('/api/user/history');
@@ -118,11 +132,11 @@ export default function Header() {
       setLoadingSessions(false);
     }
   };
-  
+
   const handleSessionSelect = (sessionId: string) => {
     router.push(`/analysis?id=${sessionId}`);
   };
-  
+
   const handleDeleteSession = async (sessionId: string) => {
     try {
       const response = await fetch(`/api/user/history/${sessionId}`, {
@@ -135,60 +149,6 @@ export default function Header() {
       console.error('Failed to delete session:', error);
     }
   };
-  
-  const handleViewUsage = async () => {
-    if (loadingPortal) {
-      console.log('[User Menu] Already loading portal, skipping...');
-      return;
-    }
-    
-    setLoadingPortal(true);
-    
-    try {
-      console.log('[User Menu] Opening billing portal...');
-      
-      // Simple fetch - server handles auth via cookies automatically
-      const response = await fetch('/api/customer-portal');
-
-      console.log('[User Menu] Response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[User Menu] Success! Opening portal...');
-        if (data.redirectUrl) {
-          window.open(data.redirectUrl, '_blank');
-        } else {
-          throw new Error('No redirect URL in response');
-        }
-      } else {
-        const error = await response.json();
-        console.error('[User Menu] API Error:', error);
-        alert(`Failed to access billing portal: ${error.error || 'Unknown error'}`);
-      }
-    } catch (error: any) {
-      console.error('[User Menu] Exception:', error);
-      alert(`Error: ${error.message || 'Failed to open billing portal'}`);
-    } finally {
-      setLoadingPortal(false);
-    }
-  };
-  
-  const handleCheckout = async (plan: 'pay_per_use' | 'subscription') => {
-    try {
-      const response = await fetch('/api/polar/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan })
-      });
-      
-      const data = await response.json();
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      }
-    } catch (error) {
-      console.error('Checkout error:', error);
-    }
-  };
 
   return (
     <header className='absolute top-0 left-0 right-0 z-50 w-full'>
@@ -199,22 +159,38 @@ export default function Header() {
 
       <div className='relative w-full px-2 md:px-4'>
         <div className='flex h-14 items-center justify-between'>
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
-          >
-            <Link href='/' className='inline-block pt-2'>
-              <Image
-                src='/polyseer.svg'
-                alt='Polyseer'
-                width={200}
-                height={80}
-                className='h-24 md:h-24 w-auto drop-shadow-md'
-                priority
-              />
-            </Link>
-          </motion.div>
+          <div className="flex items-center gap-3">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
+            >
+              <Link href='/' className='inline-block pt-2'>
+                <Image
+                  src='/polyseer.svg'
+                  alt='Polyseer'
+                  width={200}
+                  height={80}
+                  className='h-24 md:h-24 w-auto drop-shadow-md'
+                  priority
+                />
+              </Link>
+            </motion.div>
+
+            {/* Valyu sign-in banner - only for non-authenticated users */}
+            {mounted && !user && (
+              <motion.button
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.5 }}
+                onClick={() => setAuthModalOpen(true)}
+                className="hidden md:flex items-center gap-2 text-xs bg-white/10 hover:bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/20 transition-all"
+              >
+                <span className="text-white/70">Sign in with Valyu</span>
+                <span className="text-green-400 font-medium">$10 free</span>
+              </motion.button>
+            )}
+          </div>
 
           {/* Center title for analysis page */}
           {isAnalysisPage && (
@@ -238,7 +214,7 @@ export default function Header() {
           >
             {/* <ConnectPolymarket /> */}
 
-{mounted && user ? (
+            {mounted && user ? (
               <DropdownMenu onOpenChange={(open) => open && fetchAnalysisHistory()}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="gap-2 h-8 bg-gradient-to-br from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-white/20 hover:border-white/30 transition-all text-white/90 hover:text-white drop-shadow-md">
@@ -250,8 +226,8 @@ export default function Header() {
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                
-                <DropdownMenuContent align="end" className="w-80 max-h-[80vh] overflow-hidden">
+
+                <DropdownMenuContent align="end" className="w-96 max-h-[85vh] overflow-hidden">
                   {/* User Info Section */}
                   <div className="p-3 border-b">
                     <div className="flex items-center gap-3">
@@ -270,9 +246,13 @@ export default function Header() {
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="secondary" className="text-xs">
-                            {tier === 'free' ? 'Free' : tier}
+                            {tier}
                           </Badge>
-                          <span className="text-xs text-gray-500">{displayText}</span>
+                          {isValyuUser && user.valyu_organisation_name && (
+                            <span className="text-xs text-gray-500 truncate">
+                              {user.valyu_organisation_name}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -280,45 +260,100 @@ export default function Header() {
 
                   {/* Analysis History Section */}
                   <div className="border-b">
-                    <DropdownMenuLabel className="flex items-center gap-2 px-2 py-2">
+                    <DropdownMenuLabel className="flex items-center gap-2 px-3 py-2">
                       <History className="h-4 w-4" />
-                      Analysis History
+                      Recent Analyses
                     </DropdownMenuLabel>
                     {loadingSessions ? (
-                      <div className="h-[120px]">
-                        <ScrollArea className="h-full">
-                          <div className="p-2">
-                            <div className="space-y-2">
-                              {[...Array(3)].map((_, i) => (
-                                <div key={i} className="h-8 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
-                              ))}
-                            </div>
-                          </div>
-                        </ScrollArea>
+                      <div className="h-[200px]">
+                        <div className="p-2 space-y-2">
+                          {[...Array(4)].map((_, i) => (
+                            <div key={i} className="h-14 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" />
+                          ))}
+                        </div>
                       </div>
                     ) : sessions.length === 0 ? (
-                      <div className="p-3 text-center text-sm text-gray-500 h-[60px] flex items-center justify-center">
-                        No analysis history yet
+                      <div className="p-4 text-center text-sm text-gray-500 h-[80px] flex items-center justify-center">
+                        No analyses yet. Paste a market URL to get started.
                       </div>
                     ) : (
-                      <div className="h-[120px]">
-                        <div className="h-full overflow-y-auto">
-                          <div className="p-1 space-y-1">
-                            {sessions.slice(0, 5).map((session) => (
-                              <div key={session.id} className="flex items-center gap-2 p-2 rounded-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                                <MessageSquare className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                                <div 
-                                  className="flex-1 min-w-0 cursor-pointer"
-                                  onClick={() => handleSessionSelect(session.id)}
-                                >
-                                  <div className="text-sm truncate">
-                                    {session.report?.market_question || session.market_url}
+                      <div className="max-h-[280px] overflow-y-auto">
+                        <div className="p-2 space-y-1.5">
+                          {sessions.slice(0, 8).map((session) => {
+                            // Use stored platform or detect from URL
+                            const platform = session.platform || getPlatformFromUrl(session.market_url || session.polymarket_slug);
+                            // Get question from various possible fields
+                            const question = session.market_question
+                              || session.forecast_card?.question
+                              || session.forecast_card?.market?.question
+                              || session.report?.market_question
+                              || session.market_url
+                              || session.polymarket_slug
+                              || 'Unknown market';
+                            // Get probability from various possible fields
+                            const probability = session.p_neutral
+                              || session.forecast_card?.pNeutral
+                              || session.report?.probability;
+
+                            return (
+                              <div
+                                key={session.id}
+                                className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group"
+                                onClick={() => handleSessionSelect(session.id)}
+                              >
+                                {/* Platform Icon */}
+                                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-800">
+                                  {platform === 'polymarket' ? (
+                                    <img
+                                      src="https://www.google.com/s2/favicons?domain=polymarket.com&sz=32"
+                                      alt="Polymarket"
+                                      className="w-5 h-5"
+                                    />
+                                  ) : platform === 'kalshi' ? (
+                                    <img
+                                      src="https://www.google.com/s2/favicons?domain=kalshi.com&sz=32"
+                                      alt="Kalshi"
+                                      className="w-5 h-5"
+                                    />
+                                  ) : (
+                                    <MessageSquare className="h-4 w-4 text-gray-400" />
+                                  )}
+                                </div>
+
+                                {/* Content */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2 leading-tight">
+                                    {question}
                                   </div>
-                                  <div className="text-xs text-gray-500">
-                                    {new Date(session.completed_at).toLocaleDateString()}
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-xs text-gray-500">
+                                      {session.completed_at ? new Date(session.completed_at).toLocaleDateString(undefined, {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: session.completed_at.startsWith(new Date().getFullYear().toString()) ? undefined : 'numeric'
+                                      }) : 'In progress'}
+                                    </span>
+                                    {probability !== undefined && (
+                                      <>
+                                        <span className="text-gray-300 dark:text-gray-600">·</span>
+                                        <span className={`text-xs font-medium ${
+                                          probability >= 0.7 ? 'text-green-600 dark:text-green-400' :
+                                          probability <= 0.3 ? 'text-red-600 dark:text-red-400' :
+                                          'text-yellow-600 dark:text-yellow-400'
+                                        }`}>
+                                          {(probability * 100).toFixed(0)}%
+                                        </span>
+                                      </>
+                                    )}
+                                    <span className="text-xs text-gray-400 capitalize">
+                                      {platform !== 'unknown' && platform}
+                                    </span>
                                   </div>
                                 </div>
-                                <div className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0 cursor-pointer"
+
+                                {/* Delete button */}
+                                <div
+                                  className="p-1.5 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleDeleteSession(session.id);
@@ -328,8 +363,8 @@ export default function Header() {
                                   <Trash2 className="h-4 w-4" />
                                 </div>
                               </div>
-                            ))}
-                          </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -340,45 +375,23 @@ export default function Header() {
                     <User className="mr-2 h-4 w-4" />
                     Profile
                   </DropdownMenuItem>
-                  
-                  {/* Show Subscription only for free users who have never had a Polar account */}
-                  {subscriptionTier === 'free' && !hasPolarCustomer && (
-                    <DropdownMenuItem onClick={() => {
-                      setShowSubscription(true);
-                      // Track subscription modal open
-                      if (typeof window !== 'undefined') {
-                        import('@vercel/analytics').then(({ track }) => {
-                          track('Subscription Modal Opened', { 
-                            location: 'user_menu',
-                            tier: subscriptionTier 
-                          });
-                        });
-                      }
-                    }}>
-                      <CreditCard className="mr-2 h-4 w-4" />
-                      Subscription
+
+                  {/* Valyu Platform link for credit management */}
+                  {isValyuUser && (
+                    <DropdownMenuItem asChild>
+                      <a
+                        href="https://platform.valyu.ai"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center"
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Manage Valyu Credits
+                      </a>
                     </DropdownMenuItem>
                   )}
 
-                  {/* Show Usage Dashboard for any user with a Polar customer account (including cancelled) */}
-                  {hasPolarCustomer && (
-                    <DropdownMenuItem onClick={() => {
-                      // Track billing portal click
-                      if (typeof window !== 'undefined') {
-                        import('@vercel/analytics').then(({ track }) => {
-                          track('Usage Dashboard Clicked', { 
-                            tier: subscriptionTier 
-                          });
-                        });
-                      }
-                      handleViewUsage();
-                    }} disabled={loadingPortal}>
-                      <BarChart3 className="mr-2 h-4 w-4" />
-                      {loadingPortal ? 'Opening Portal...' : 'View Usage & Billing'}
-                    </DropdownMenuItem>
-                  )}
-
-                  {/* Theme Switcher with Monetization */}
+                  {/* Theme Switcher */}
                   <div className="px-2 py-2">
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
@@ -388,44 +401,16 @@ export default function Header() {
                       <ThemeSwitcher
                         value={currentTheme}
                         onChange={setCurrentTheme}
-                        requiresSubscription={subscriptionTier === 'free'}
-                        hasSubscription={subscriptionTier !== 'free'}
-                        onUpgradeClick={() => {
-                          setShowSubscription(true);
-                          // Track dark mode upgrade click
-                          if (typeof window !== 'undefined') {
-                            import('@vercel/analytics').then(({ track }) => {
-                              track('Dark Mode Upgrade Clicked', { 
-                                tier: subscriptionTier 
-                              });
-                            });
-                          }
-                        }}
                         userId={user?.id}
                         sessionId={`session_${Date.now()}`}
-                        tier={subscriptionTier}
+                        tier={tier}
                         className="ml-auto"
                       />
                     </div>
-                    {subscriptionTier === 'pay_per_use' && (
-                      <div className="text-xs text-gray-500 mt-1 text-right">
-                        $0.01 per switch
-                      </div>
-                    )}
-                    {subscriptionTier === 'subscription' && (
-                      <div className="text-xs text-green-600 dark:text-green-400 mt-1 text-right">
-                        Unlimited switches
-                      </div>
-                    )}
-                    {subscriptionTier === 'free' && (
-                      <div className="text-xs text-amber-600 dark:text-amber-400 mt-1 text-right">
-                        Premium feature
-                      </div>
-                    )}
                   </div>
-                  
+
                   <DropdownMenuSeparator />
-                  
+
                   <DropdownMenuItem onClick={async () => {
                     console.log('[Header] Sign out button clicked')
                     try {
@@ -445,7 +430,7 @@ export default function Header() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-) : mounted && !isDevelopment ? (
+            ) : mounted && !isDevelopment ? (
               <Button
                 variant='ghost'
                 size='sm'
@@ -463,51 +448,7 @@ export default function Header() {
                 Sign in
               </Button>
             ) : null}
-            
-            {/* Subscription Modal */}
-            {showSubscription && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowSubscription(false)}>
-                <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-                  <h3 className="text-lg font-semibold mb-4">Choose a Plan</h3>
-                  <div className="space-y-4">
-                    <div className="border rounded-lg p-4">
-                      <h4 className="font-medium mb-2">Pay Per Use</h4>
-                      <p className="text-sm text-gray-600 mb-3">Pay only for what you use</p>
-                      <Button onClick={() => {
-                        // Track pay-per-use button click
-                        if (typeof window !== 'undefined') {
-                          import('@vercel/analytics').then(({ track }) => {
-                            track('Checkout Started', { 
-                              plan: 'pay_per_use',
-                              tier: subscriptionTier 
-                            });
-                          });
-                        }
-                        handleCheckout('pay_per_use');
-                      }} className="w-full">Get Started</Button>
-                    </div>
-                    <div className="border rounded-lg p-4">
-                      <h4 className="font-medium mb-2">Monthly Subscription</h4>
-                      <p className="text-sm text-gray-600 mb-3">$100/month for 20 analyses</p>
-                      <Button onClick={() => {
-                        // Track subscription button click
-                        if (typeof window !== 'undefined') {
-                          import('@vercel/analytics').then(({ track }) => {
-                            track('Checkout Started', { 
-                              plan: 'subscription',
-                              tier: subscriptionTier 
-                            });
-                          });
-                        }
-                        handleCheckout('subscription');
-                      }} className="w-full">Subscribe</Button>
-                    </div>
-                  </div>
-                  <Button variant="outline" onClick={() => setShowSubscription(false)} className="w-full mt-4">Cancel</Button>
-                </div>
-              </div>
-            )}
-            
+
             {/* Profile Settings Modal */}
             {showSettings && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowSettings(false)}>
@@ -522,6 +463,24 @@ export default function Header() {
                       <label className="text-sm font-medium">User ID</label>
                       <div className="text-xs font-mono text-gray-600">{user?.id}</div>
                     </div>
+                    {isValyuUser && (
+                      <>
+                        <div>
+                          <label className="text-sm font-medium">Valyu Organization</label>
+                          <div className="text-sm text-gray-600">{user?.valyu_organisation_name || 'N/A'}</div>
+                        </div>
+                        <div className="pt-2">
+                          <a
+                            href="https://platform.valyu.ai"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-purple-600 hover:text-purple-700 underline"
+                          >
+                            Manage credits on Valyu Platform
+                          </a>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <Button variant="outline" onClick={() => setShowSettings(false)} className="w-full mt-4">Close</Button>
                 </div>

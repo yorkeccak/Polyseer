@@ -3,11 +3,10 @@ import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { Evidence } from '../forecasting/types';
 import { valyuDeepSearchTool, valyuWebSearchTool } from '../tools/valyu_search';
-import { getPolarTrackedModel } from '../polar-llm-strategy';
 
-// Get model dynamically to use current context
-const getModelSmall = () => getPolarTrackedModel('gpt-5-mini');
-const getModel = () => getPolarTrackedModel('gpt-5');
+// Model helpers - using OpenAI directly (costs handled via Valyu OAuth proxy for search)
+const getModelSmall = () => openai('gpt-4o-mini');
+const getModel = () => openai('gpt-4o');
 
 interface MarketData {
   market_facts: {
@@ -181,8 +180,8 @@ function dedupeAndNormalizeEvidence(items: Evidence[]): Evidence[] {
 }
 
 // Summarize tool findings to a bounded-length digest to avoid context overflows
-// Side-aware: bias the summary toward the research target (FOR/AGAINST/NEUTRAL)
-async function summarizeFindings(raw: string, maxChars = 2000, question?: string, side?: 'FOR' | 'AGAINST' | 'NEUTRAL'): Promise<string> {
+// Side-aware: bias the summary toward the research target (FOR/AGAINST/NEUTRAL/BOTH)
+async function summarizeFindings(raw: string, maxChars = 2000, question?: string, side?: 'FOR' | 'AGAINST' | 'NEUTRAL' | 'BOTH'): Promise<string> {
   try {
     const seed = raw?.slice(0, Math.min(raw.length, 8000)) || '';
     const sideDirective = (() => {
@@ -191,6 +190,7 @@ async function summarizeFindings(raw: string, maxChars = 2000, question?: string
       } else if (side === 'AGAINST') {
         return 'Target: CON side. Emphasize findings that CONTRADICT the outcome. Prioritize directly disconfirming facts and high-credibility sources. Omit or briefly note supporting points only if essential.';
       } else {
+        // NEUTRAL or BOTH
         return 'Target: NEUTRAL. Provide a factual, topic-focused summary without taking a side.';
       }
     })();
@@ -309,7 +309,7 @@ async function conductResearch(
 - Craft search queries that are SPECIFIC to the question's subject matter
 - AVOID generic searches that could return irrelevant results
 - For political questions: include specific names, countries, political entities
-- For market questions: include specific companies, products, or financial instruments  
+- For market questions: include specific companies, products, or financial instruments
 - REJECT any search results about unrelated topics (medicine, safety, general studies)
 - Don't add 'site:' prefixes to queries - use natural language`,
       prompt: `${prompt}\n\nUse the search tools to find relevant information, then summarize your findings. STAY ON TOPIC.`,
@@ -319,27 +319,47 @@ async function conductResearch(
       }
     });
 
+    // Extract URLs from tool results to pass to evidence generation
+    const toolUrls: string[] = [];
+    if (searchResult.toolResults) {
+      for (const tr of searchResult.toolResults) {
+        const result = tr.result as any;
+        if (result?.results && Array.isArray(result.results)) {
+          for (const r of result.results) {
+            if (r.url) toolUrls.push(r.url);
+          }
+        }
+      }
+    }
+    console.log(`[conductResearch ${side}] Tool returned ${toolUrls.length} URLs`);
+
     // Step 2: Summarize findings to bound context, then generate structured evidence
-    const summarized = await summarizeFindings(searchResult.text, 2000, question, side);
+    // Include the actual URLs from search results
+    const urlContext = toolUrls.length > 0
+      ? `\n\nACTUAL SOURCE URLs FROM SEARCH (use these, do NOT make up URLs):\n${toolUrls.slice(0, 20).map((u, i) => `${i+1}. ${u}`).join('\n')}`
+      : '\n\nWARNING: No URLs returned from search. Use empty arrays for urls field.';
+
+    const summarized = await summarizeFindings(searchResult.text + urlContext, 2500, question, side);
     const evidencePrompt = `Based on your research findings, create structured evidence for the ${side} side.
 
 Research Summary (compressed): ${summarized}
 
-CRITICAL REQUIREMENT: ALL evidence must be directly relevant to the question "${question}". 
-- REJECT evidence about unrelated topics (medicine, safety, general statistics)
-- ONLY include evidence specifically about the subject and context in the question
-- If your search found off-topic results, mark them as irrelevant and don't include them
+CRITICAL REQUIREMENTS:
+1. ALL evidence must be directly relevant to the question "${question}"
+2. REJECT evidence about unrelated topics (medicine, safety, general statistics)
+3. ONLY include evidence specifically about the subject and context in the question
+4. **IMPORTANT**: Use ONLY the actual URLs provided in the research summary above. Do NOT invent or hallucinate URLs like "example.com". If no URLs are available for a claim, use an empty array [].
 
 Now create 4-8 high-quality evidence items in JSON format matching this schema (prioritize Type A/B; PREFER 2025 SOURCES; include 2024 only if essential to cover critical mechanisms; exclude pre-2024):
 {
   "items": [
     {
       "id": "string",
-      "claim": "string", 
+      "claim": "string",
       "polarity": "${side === 'FOR' ? '1' : '-1'}",
       "type": "A|B|C|D",
       "publishedAt": "YYYY-MM-DD or ISO",
-      "urls": ["string"] // or [] if no sources,
+      "urls": ["string"] // MUST be real URLs from search results above, or empty array [] if none available,
       "originId": "string",
       "firstReport": boolean,
       "verifiability": number,
@@ -407,12 +427,12 @@ export async function researchBothSides(
 
 export async function conductFollowUpResearch(
   question: string,
-  followUpSearches: Array<{ query: string; rationale: string; side: 'FOR' | 'AGAINST' | 'NEUTRAL' }>,
+  followUpSearches: Array<{ query: string; rationale: string; side: 'FOR' | 'AGAINST' | 'NEUTRAL' | 'BOTH' }>,
   marketData?: MarketData,
   sessionId?: string
 ): Promise<{ pro: Evidence[]; con: Evidence[]; neutral: Evidence[] }> {
   console.log(`🔍 Starting follow-up research with ${followUpSearches.length} targeted searches...`);
-  
+
   const results = await Promise.all(
     followUpSearches.map(async (search) => {
       const evidence = await conductTargetedResearch(question, search, marketData, sessionId);
@@ -420,12 +440,13 @@ export async function conductFollowUpResearch(
     })
   );
 
+  // Handle BOTH side by treating it as NEUTRAL (evidence that could go either way)
   const pro = results.filter(r => r.side === 'FOR').flatMap(r => r.evidence);
   const con = results.filter(r => r.side === 'AGAINST').flatMap(r => r.evidence);
-  const neutral = results.filter(r => r.side === 'NEUTRAL').flatMap(r => r.evidence);
+  const neutral = results.filter(r => r.side === 'NEUTRAL' || r.side === 'BOTH').flatMap(r => r.evidence);
 
   console.log(`✅ Follow-up research complete: ${pro.length} pro, ${con.length} con, ${neutral.length} neutral evidence`);
-  
+
   return { pro, con, neutral };
 }
 
@@ -537,7 +558,7 @@ Return ONLY the JSON.`;
 
 async function conductTargetedResearch(
   question: string,
-  search: { query: string; rationale: string; side: 'FOR' | 'AGAINST' | 'NEUTRAL' },
+  search: { query: string; rationale: string; side: 'FOR' | 'AGAINST' | 'NEUTRAL' | 'BOTH' },
   marketData?: MarketData,
   sessionId?: string
 ): Promise<Evidence[]> {
@@ -596,7 +617,7 @@ Create evidence items in JSON format matching this schema:
     {
       "id": "string",
       "claim": "string", 
-      "polarity": "${search.side === 'FOR' ? '1' : '-1'}",
+      "polarity": "${search.side === 'FOR' ? '1' : search.side === 'AGAINST' ? '-1' : '0'}",
       "type": "A|B|C|D",
       "publishedAt": "YYYY-MM-DD or ISO",
       "urls": ["string"] // or [] if no sources,
@@ -634,7 +655,7 @@ Return ONLY the JSON object, no other text.`;
     if (structuredResult.experimental_output) {
       const itemsRaw = structuredResult.experimental_output.items.map((item: any) => ({
         ...item,
-        polarity: search.side === 'NEUTRAL' ? 0 : (item.polarity === '1' ? 1 : -1) // Convert string to number, handle NEUTRAL
+        polarity: (search.side === 'NEUTRAL' || search.side === 'BOTH') ? 0 : (item.polarity === '1' ? 1 : -1) // Convert string to number, handle NEUTRAL/BOTH
       }));
       let items = dedupeAndNormalizeEvidence(itemsRaw as Evidence[]);
       const before = items.length;

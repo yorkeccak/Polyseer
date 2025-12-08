@@ -5,11 +5,10 @@ import { clamp } from '../forecasting/math';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { openai } from '@ai-sdk/openai';
-import { getPolarTrackedModel } from '../polar-llm-strategy';
 
-// Get model dynamically to use current context
-const getModel = () => getPolarTrackedModel('gpt-5');
-const getModelSmall = () => getPolarTrackedModel('gpt-5-mini');
+// Model helpers
+const getModel = () => openai('gpt-4o');
+const getModelSmall = () => openai('gpt-4o-mini');
 
 export interface MarketSnapshot { 
   probability: number; 

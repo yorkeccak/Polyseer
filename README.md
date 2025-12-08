@@ -2,7 +2,7 @@
 
 > *Everyone wishes they could go back and buy Bitcoin at $1. Polyseer brings the future to you, so you never have to wonder "what if?" again.*
 
-**⚠️ NOT FINANCIAL ADVICE** | Polyseer provides analysis for entertainment and research purposes only. Always DYOR.
+**NOT FINANCIAL ADVICE** | Polyseer provides analysis for entertainment and research purposes only. Always DYOR.
 
 ## Tldr;
 
@@ -13,12 +13,12 @@ npm install
 
 # Create .env.local with:
 # OPENAI_API_KEY=sk-... # Get from platform.openai.com
-# VALYU_API_KEY=vl_...  # Get from platform.valyu.network
+# + Valyu OAuth credentials (see below)
 
 npm run dev
 ```
 
-Open [localhost:3000](http://localhost:3000), paste any **Polymarket or Kalshi** URL, and get your analysis. No signup required in development mode.
+Open [localhost:3000](http://localhost:3000), sign in with Valyu, paste any **Polymarket or Kalshi** URL, and get your analysis.
 
 Or, we have a hosted version [here](https://www.polyseer.xyz)
 
@@ -41,9 +41,9 @@ Built for developers, researchers, and anyone who wants rigorous analysis instea
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
-Polyseer is built on a **multi-agent AI architecture** that orchestrates specialized agents to conduct deep analysis. Here's how the magic happens:
+Polyseer is built on a **multi-agent AI architecture** that orchestrates specialized agents to conduct deep analysis. Here's how it works:
 
 ```mermaid
 graph TD
@@ -62,66 +62,68 @@ graph TD
     H --> I[Analyst Agent]
     I --> J[Reporter Agent]
     J --> K[Final Verdict]
-    
+
     style A fill:#e1f5fe
     style K fill:#c8e6c9
     style F fill:#fff3e0
     style C fill:#f3e5f5
 ```
 
-### 🧠 Agent System Deep Dive
+### Agent System Deep Dive
 
 ```mermaid
 sequenceDiagram
-    participant User as 👤 User
-    participant Orch as 🎭 Orchestrator
-    participant Plan as 🗺️ Planner
-    participant Res as 🔍 Researcher
-    participant Valyu as 🌐 Valyu Network
-    participant Critic as 🧪 Critic
-    participant Analyst as 📊 Analyst
-    participant Reporter as 📝 Reporter
-    
+    participant User
+    participant Orch as Orchestrator
+    participant Plan as Planner
+    participant Res as Researcher
+    participant Valyu as Valyu Network
+    participant Critic
+    participant Analyst
+    participant Reporter
+
     User->>Orch: Polymarket URL
     Orch->>Plan: Generate research strategy
     Plan->>Orch: Subclaims + search seeds
-    
+
     par Research Cycle 1
         Orch->>Res: Research PRO evidence
         Res->>Valyu: Deep + Web searches
         Valyu-->>Res: Academic papers, news, data
         and
-        Orch->>Res: Research CON evidence  
+        Orch->>Res: Research CON evidence
         Res->>Valyu: Targeted counter-searches
         Valyu-->>Res: Contradicting evidence
     end
-    
+
     Orch->>Critic: Analyze evidence gaps
     Critic->>Orch: Follow-up search recommendations
-    
+
     par Research Cycle 2 (if gaps found)
         Orch->>Res: Targeted follow-up searches
         Res->>Valyu: Fill identified gaps
         Valyu-->>Res: Missing evidence
     end
-    
+
     Orch->>Analyst: Bayesian probability aggregation
     Analyst->>Orch: pNeutral, pAware, evidence weights
-    
+
     Orch->>Reporter: Generate final report
-    Reporter->>User: 📋 Analyst-grade verdict
+    Reporter->>User: Analyst-grade verdict
 ```
 
-## 🔬 Deep Research System
+## Deep Research System
 
 ### Valyu Integration
 
-Polyseer leverages [Valyu's search network](https://valyu.network) to access:
+Polyseer uses **Sign in with Valyu** for authentication and search API access. Valyu is the information backbone of Polyseer, providing access to:
 
-- **🎓 Academic Papers**: Real-time research publications
-- **🌐 Web Intelligence**: Fresh news and analysis  
-- **📈 Market Data**: Financial and trading information
-- **🏛️ Proprietary Datasets**: Exclusive Valyu intelligence
+- **Academic Papers**: Real-time research publications
+- **Web Intelligence**: Fresh news and analysis
+- **Market Data**: Financial and trading information
+- **Proprietary Datasets**: Exclusive Valyu intelligence
+
+All API costs are charged to your Valyu organization credits via OAuth proxy. **New accounts get $10 in free credits.**
 
 ```mermaid
 graph LR
@@ -130,17 +132,17 @@ graph LR
     B --> D[Web Sources]
     B --> E[Market Data]
     B --> F[Proprietary Intel]
-    
+
     C --> G[Evidence Classification]
     D --> G
-    E --> G  
+    E --> G
     F --> G
-    
+
     G --> H[Type A: Primary Sources]
     G --> I[Type B: High-Quality Secondary]
     G --> J[Type C: Standard Secondary]
     G --> K[Type D: Weak/Speculative]
-    
+
     style B fill:#fff3e0
     style H fill:#c8e6c9
     style I fill:#dcedc8
@@ -159,7 +161,7 @@ Each piece of evidence is rigorously classified:
 | **C** | Standard Secondary | 0.8 | Reputable news with citations, industry publications |
 | **D** | Weak/Speculative | 0.3 | Social media, unverified claims, rumors |
 
-## 📊 Mathematical Foundation
+## Mathematical Foundation
 
 ### Bayesian Probability Aggregation
 
@@ -172,10 +174,10 @@ graph TD
     C --> D[Correlation Adjustments]
     D --> E[Cluster Analysis]
     E --> F[Final Probabilities]
-    
+
     F --> G[pNeutral: Objective Assessment]
     F --> H[pAware: Market-Informed]
-    
+
     style A fill:#e3f2fd
     style F fill:#c8e6c9
     style G fill:#dcedc8
@@ -195,49 +197,45 @@ Each piece of evidence receives an influence score based on:
 - **Independence**: Number of independent corroborations
 - **Recency**: How fresh is the information?
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Frontend
-- **⚡ Next.js 15.5** - React framework with Turbopack
-- **🎨 Tailwind CSS 4** - Utility-first styling
-- **🎭 Framer Motion** - Smooth animations
-- **🌈 Radix UI** - Accessible components
-- **⚛️ React 19** - Latest React features
+- **Next.js 15.5** - React framework with Turbopack
+- **Tailwind CSS 4** - Utility-first styling
+- **Framer Motion** - Smooth animations
+- **Radix UI** - Accessible components
+- **React 19** - Latest React features
 
 ### Backend & APIs
-- **🤖 AI SDK** - LLM orchestration
-- **🧠 GPT-5** - Advanced reasoning model
-- **🔍 Valyu JS SDK** - Search network integration
-- **📊 Polymarket API** - Market data fetching
-- **💾 Supabase** - Database and authentication
-- **💳 Polar** - Subscription and billing
+- **AI SDK** - LLM orchestration
+- **GPT-5** - Advanced reasoning model
+- **Valyu OAuth** - Authentication & search API access
+- **Polymarket API** - Market data fetching
+- **Kalshi API** - Market data fetching
+- **Supabase** - Database and session management
 
 ### State Management
-- **🐻 Zustand** - Simple state management
-- **🔄 TanStack Query** - Server state synchronization
-- **🍪 Supabase SSR** - Server-side authentication
+- **Zustand** - Simple state management
+- **TanStack Query** - Server state synchronization
+- **Supabase SSR** - Server-side authentication
 
 ### Infrastructure
-- **🔐 TypeScript** - Type safety throughout
-- **🎯 Zod** - Runtime type validation  
-- **📝 ESLint** - Code quality
-- **🏗️ Vercel** - Deployment platform
+- **TypeScript** - Type safety throughout
+- **Zod** - Runtime type validation
+- **ESLint** - Code quality
+- **Vercel** - Deployment platform
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-#### For Development Mode
 - **Node.js 18+**
-- **npm/pnpm/yarn** 
-- **Valyu API key** - Get yours at [platform.valyu.network](https://platform.valyu.network)
+- **npm/pnpm/yarn**
 - **OpenAI API key** - For GPT-5 access
-
-#### Additional for Production Mode  
-- **Supabase account** - Database and authentication
-- **Polar account** - Billing and subscriptions
+- **Valyu OAuth credentials** - Get from [platform.valyu.ai](https://platform.valyu.ai)
+- **Supabase account** - For database and session management
 
 ### 1. Clone the Repository
 
@@ -256,73 +254,68 @@ pnpm install
 
 ### 3. Environment Setup
 
-Create `.env.local` and configure the required variables for your mode:
+Create `.env.local` with the following variables:
 
-#### 🔐 Core API Keys (Required for Both Modes)
 ```env
-# OpenAI (GPT-4/5 access required)
-OPENAI_API_KEY=sk-...
-
-# Valyu Search Network
-VALYU_API_KEY=vl_...
-
-# Polymarket (optional, for enhanced data)
-POLYMARKET_API_KEY=pm_...
-```
-
-#### 🏛️ Database & Auth (Production Mode Only)
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-
-# Email notifications (optional)
-RESEND_API_KEY=re_...
-```
-
-#### 💳 Billing & Subscriptions (Production Mode Only)
-```env
-POLAR_ACCESS_TOKEN=polar_...
-POLAR_SUBSCRIPTION_PRODUCT_ID=prod_...
-POLAR_PAY_PER_USE_PRODUCT_ID=prod_...
-POLAR_WEBHOOK_SECRET=whsec_...
+# ===========================================
+# App Configuration
+# ===========================================
+NEXT_PUBLIC_APP_MODE=development  # Set to 'production' for production deployment
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# ===========================================
+# Valyu OAuth Configuration (Required)
+# ===========================================
+# Get these from Valyu Platform Dashboard: https://platform.valyu.ai
+# Settings -> OAuth Apps -> Create new OAuth App
+
+NEXT_PUBLIC_VALYU_SUPABASE_URL=https://xxx.supabase.co  # Valyu Platform's Supabase URL
+NEXT_PUBLIC_VALYU_CLIENT_ID=your-oauth-client-id
+VALYU_CLIENT_SECRET=your-oauth-client-secret  # Server-only! Do not expose to client
+VALYU_APP_URL=https://platform.valyu.ai  # Valyu Platform URL for userinfo endpoint
+
+# ===========================================
+# App's Own Supabase (Required)
+# ===========================================
+# Your app's Supabase project for user data, chat history, etc.
+
+NEXT_PUBLIC_SUPABASE_URL=https://your-app.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key  # Server-only!
+
+# ===========================================
+# OpenAI Configuration (Required)
+# ===========================================
+
+OPENAI_API_KEY=your-openai-api-key
+
+# ===========================================
+# Optional Services
+# ===========================================
+
+# Weaviate Memory (optional)
+MEMORY_ENABLED=false
+WEAVIATE_HOST=your-weaviate-host
+WEAVIATE_API_KEY=your-weaviate-api-key
+
+# Kalshi Integration (optional)
+KALSHI_API_KEY=your-kalshi-api-key
+
+# Groq (optional - for faster inference)
+GROQ_API_KEY=your-groq-api-key
 ```
 
-#### 🧠 Memory System (Optional - Both Modes)
-```env
-MEMORY_ENABLED=true
-WEAVIATE_URL=https://your-weaviate.weaviate.network
-WEAVIATE_API_KEY=wv_...
-```
+### 4. Database Setup
 
-#### 🌍 App Configuration
-```env
-# Development mode (DEFAULT): No rate limits, no auth required, use your own API keys
-# NEXT_PUBLIC_APP_MODE=development  # This is the default if not set
-NODE_ENV=development
-
-# Production mode: Full auth, rate limits, billing system  
-# NEXT_PUBLIC_APP_MODE=production
-# NODE_ENV=production
-```
-
-### 4. Database Setup (Production Mode Only)
-
-If you're using production mode, set up your Supabase database with the following tables:
+Set up your Supabase database with the following table:
 
 ```sql
--- Users table with subscription info
+-- Users table
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   full_name TEXT,
   avatar_url TEXT,
-  subscription_tier TEXT DEFAULT 'free',
-  subscription_status TEXT DEFAULT 'inactive',
-  analyses_remaining INTEGER DEFAULT 0,
-  total_analyses_run INTEGER DEFAULT 0,
-  polar_customer_id TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -331,7 +324,7 @@ CREATE TABLE users (
 CREATE TABLE analysis_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id),
-  polymarket_slug TEXT NOT NULL,
+  market_url TEXT NOT NULL,
   market_question TEXT,
   status TEXT DEFAULT 'pending',
   started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -353,59 +346,19 @@ CREATE TABLE analysis_sessions (
 );
 ```
 
-### 5. Choose Your Mode
-
-Polyseer supports two deployment modes:
-
-#### 🔧 **Development Mode** (Default)
-Perfect for developers, researchers, and personal use:
+### 5. Start the Development Server
 
 ```bash
-# Set in .env.local
-NEXT_PUBLIC_APP_MODE=development
-
-# Then run
 npm run dev
 ```
 
-**Features:**
-- ✅ **No rate limits** - Unlimited usage
-- ✅ **No authentication required** - Jump straight to analysis  
-- ✅ **Use your own API keys** - Direct control over costs
-- ✅ **No signup/billing system** - No barriers to entry
-- 🎯 **Perfect for**: Personal research, development, API key holders
-
-#### 🌍 **Production Mode** 
-For hosting a public service with monetization:
-
-```bash
-# Set in .env.local  
-NEXT_PUBLIC_APP_MODE=production
-
-# Ensure all Supabase/Polar variables are configured
-# Then run
-npm run dev
-```
-
-**Features:**
-- 🔐 **Full authentication system** - Secure user management
-- 💳 **Billing integration** - Polar-powered subscriptions  
-- 📊 **Usage tracking** - Rate limits and analytics
-- 🚦 **Tiered access** - Free, pay-per-use, unlimited plans
-- 🎯 **Perfect for**: SaaS deployment, public hosting, monetization
-
-### 6. Start Analyzing
-
-Open [http://localhost:3000](http://localhost:3000) and paste any Polymarket URL to get started!
-
-**Development Mode**: No signup needed - go straight to analysis
-**Production Mode**: Users can sign up or get limited anonymous usage
+Open [http://localhost:3000](http://localhost:3000), sign in with Valyu, and start analyzing.
 
 ---
 
-## 📊 Agent System Details
+## Agent System Details
 
-### 🗺️ Planner Agent
+### Planner Agent
 **Purpose**: Break down complex questions into research pathways
 **Input**: Market question
 **Output**: Subclaims, search seeds, key variables, decision criteria
@@ -419,24 +372,24 @@ interface Plan {
 }
 ```
 
-### 🔍 Researcher Agent  
+### Researcher Agent
 **Purpose**: Gather evidence from multiple sources
 **Tools**: Valyu Deep Search, Valyu Web Search
-**Process**: 
+**Process**:
 1. Initial bilateral research (PRO/CON)
 2. Evidence classification (A/B/C/D)
 3. Follow-up targeted searches
 
-### 🧪 Critic Agent
+### Critic Agent
 **Purpose**: Identify gaps and provide quality feedback
 **Analysis**:
 - Missing evidence areas
-- Duplication detection  
+- Duplication detection
 - Data quality concerns
 - Correlation adjustments
 - Follow-up search recommendations
 
-### 📊 Analyst Agent
+### Analyst Agent
 **Purpose**: Mathematical probability aggregation
 **Methods**:
 - Bayesian updating
@@ -444,7 +397,7 @@ interface Plan {
 - Correlation adjustments
 - Log-likelihood calculations
 
-### 📝 Reporter Agent
+### Reporter Agent
 **Purpose**: Generate human-readable analysis
 **Output**: Markdown report with:
 - Executive summary
@@ -454,23 +407,23 @@ interface Plan {
 
 ---
 
-## 🔒 Security & Privacy
+## Security & Privacy
 
 ### Data Protection
-- **🔐 End-to-end encryption** for sensitive data
-- **🍪 Secure session management** via Supabase
-- **🛡️ Input sanitization** for all user data
-- **🚫 No personal data** stored in search queries
+- End-to-end encryption for sensitive data
+- Secure session management via Supabase
+- Input sanitization for all user data
+- No personal data stored in search queries
 
 ### API Security
-- **🔑 Rate limiting** on all endpoints
-- **🛡️ CORS policies** for secure cross-origin requests
-- **🔍 Request validation** using Zod schemas
-- **📋 Audit logging** for all API calls
+- OAuth 2.1 with PKCE for Valyu authentication
+- CORS policies for secure cross-origin requests
+- Request validation using Zod schemas
+- Audit logging for all API calls
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Here's how to get started:
 
@@ -489,52 +442,53 @@ We welcome contributions! Here's how to get started:
 
 ---
 
-## 📈 Performance & Scalability
+## Performance & Scalability
 
 ### Optimization Strategies
-- **⚡ Turbopack**: Fast development builds
-- **🚀 Edge runtime**: Serverless function optimization
-- **📦 Code splitting**: Minimal bundle sizes
-- **🎯 Smart caching**: Redis for repeated queries
+- Turbopack for fast development builds
+- Edge runtime for serverless function optimization
+- Code splitting for minimal bundle sizes
+- Smart caching for repeated queries
 
 ### Monitoring
-- **📊 Real-time metrics** via Polar
-- **🐛 Error tracking** with detailed logging
-- **⏱️ Performance monitoring** for all agents
-- **💰 Cost tracking** for API usage
+- Real-time metrics via Vercel Analytics
+- Error tracking with detailed logging
+- Performance monitoring for all agents
+- Cost tracking for API usage
 
 ---
 
-## ⚖️ Legal & Disclaimers
+## Legal & Disclaimers
 
 ### Important Notice
-**⚠️ NOT FINANCIAL ADVICE**: Polyseer provides analysis for entertainment and research purposes only. All predictions are probabilistic and should not be used as the sole basis for financial decisions.
+**NOT FINANCIAL ADVICE**: Polyseer provides analysis for entertainment and research purposes only. All predictions are probabilistic and should not be used as the sole basis for financial decisions.
 
 ### Terms of Service
-- **🔒 Privacy Policy**: We respect your privacy
-- **📋 Terms of Use**: Fair use and guidelines
-- **⚖️ Liability**: Limited liability for predictions
-- **🌍 Jurisdiction**: Governed by applicable laws
+- Privacy Policy: We respect your privacy
+- Terms of Use: Fair use and guidelines
+- Liability: Limited liability for predictions
+- Jurisdiction: Governed by applicable laws
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 ### Powered By
-- **🌐 Valyu Network**: Real-time search api
-- **🧠 OpenAI GPT-5**: Advanced reasoning capabilities  
-- **📊 Polymarket**: Prediction market data
-- **💾 Supabase**: Backend infrastructure
-- **💳 Polar**: Billing and subscriptions
+- **Valyu Network**: Authentication & real-time search API
+- **OpenAI GPT-5**: Advanced reasoning capabilities
+- **Polymarket**: Prediction market data
+- **Kalshi**: Prediction market data
+- **Supabase**: Backend infrastructure
+
 ---
 
-**Ready to see the future? Start analyzing markets at [polyseer.xyz](https://polyseer.xyz) 🔮**
+**Ready to see the future? Start analyzing markets at [polyseer.xyz](https://polyseer.xyz)**
 
 *Remember: The future belongs to those who can see it coming. Don't miss out again.*
 
@@ -542,8 +496,8 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 <div align="center">
   <img src="public/polyseer.svg" alt="Polyseer" width="200"/>
-  
+
   **See the Future. Don't Miss Out.**
-  
+
   [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fpolyseer%2Fpolyseer)
 </div>
