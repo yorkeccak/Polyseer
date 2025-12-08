@@ -311,9 +311,9 @@ export default function Header() {
                                     />
                                   ) : platform === 'kalshi' ? (
                                     <img
-                                      src="https://www.google.com/s2/favicons?domain=kalshi.com&sz=32"
+                                      src="https://kalshi.com/logo192.png"
                                       alt="Kalshi"
-                                      className="w-5 h-5"
+                                      className="w-5 h-5 rounded-sm"
                                     />
                                   ) : (
                                     <MessageSquare className="h-4 w-4 text-gray-400" />

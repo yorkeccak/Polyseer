@@ -95,9 +95,9 @@ export default function AnalysisDetailPage() {
                   />
                 ) : analysis.platform === 'kalshi' ? (
                   <img
-                    src="https://www.google.com/s2/favicons?domain=kalshi.com&sz=32"
+                    src="https://kalshi.com/logo192.png"
                     alt="Kalshi"
-                    className="w-6 h-6"
+                    className="w-6 h-6 rounded-sm"
                   />
                 ) : (
                   <span className="text-gray-500 text-sm font-bold">?</span>

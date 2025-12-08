@@ -43,6 +43,15 @@ export default function HeroSection({ onAnalyze, isAnalyzing, onShowHowItWorks, 
     return polymarketRegex.test(url) || kalshiRegex.test(url);
   };
 
+  const detectPlatform = (url: string): 'polymarket' | 'kalshi' | null => {
+    if (!url) return null;
+    if (url.includes('polymarket.com')) return 'polymarket';
+    if (url.includes('kalshi.com')) return 'kalshi';
+    return null;
+  };
+
+  const detectedPlatform = detectPlatform(url);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -164,6 +173,19 @@ export default function HeroSection({ onAnalyze, isAnalyzing, onShowHowItWorks, 
                       {isAnalyzing || isTransitioning ? (
                         <span className="flex items-center gap-2">
                           <Sparkles className="h-4 w-4 animate-pulse" />
+                        </span>
+                      ) : detectedPlatform ? (
+                        <span className="flex items-center gap-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={detectedPlatform === 'polymarket'
+                              ? 'https://www.google.com/s2/favicons?domain=polymarket.com&sz=32'
+                              : 'https://kalshi.com/logo192.png'
+                            }
+                            alt={detectedPlatform}
+                            className="w-5 h-5 md:w-6 md:h-6 rounded-sm"
+                          />
+                          <ArrowRight className="h-4 w-4 md:h-5 md:w-5" />
                         </span>
                       ) : (
                         <ArrowRight className="h-5 w-5 md:h-6 md:w-6" />

@@ -118,6 +118,15 @@ export const useAuthStore = create<AuthStore>()(
 
       signInWithValyu: async () => {
         try {
+          // Track sign-in attempt
+          if (typeof window !== 'undefined') {
+            import('@vercel/analytics').then(({ track }) => {
+              track('Sign In With Valyu Clicked', {
+                source: window.location.pathname,
+              })
+            })
+          }
+
           const redirectUri = `${window.location.origin}/auth/valyu/callback`
           const { url } = await buildAuthorizationUrl(redirectUri)
 
@@ -127,6 +136,14 @@ export const useAuthStore = create<AuthStore>()(
           return { data: { redirecting: true } }
         } catch (error) {
           console.error('[Auth Store] signInWithValyu error:', error)
+          // Track sign-in error
+          if (typeof window !== 'undefined') {
+            import('@vercel/analytics').then(({ track }) => {
+              track('Sign In With Valyu Error', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+              })
+            })
+          }
           return {
             error: {
               message: error instanceof Error ? error.message : 'Failed to start Valyu sign-in',
@@ -239,6 +256,14 @@ export const useAuthStore = create<AuthStore>()(
 
       signOut: async () => {
         console.log('[Auth Store] signOut called')
+
+        // Track sign out
+        if (typeof window !== 'undefined') {
+          import('@vercel/analytics').then(({ track }) => {
+            track('Sign Out Clicked')
+          })
+        }
+
         const supabase = createClient()
 
         try {
