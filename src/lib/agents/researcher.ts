@@ -321,8 +321,9 @@ async function conductResearch(
 
     // Extract URLs from tool results to pass to evidence generation
     const toolUrls: string[] = [];
-    if (searchResult.toolResults) {
-      for (const tr of searchResult.toolResults) {
+    const toolResults = (searchResult as any).toolResults;
+    if (toolResults && Array.isArray(toolResults)) {
+      for (const tr of toolResults) {
         const result = tr.result as any;
         if (result?.results && Array.isArray(result.results)) {
           for (const r of result.results) {
