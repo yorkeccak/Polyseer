@@ -27,7 +27,7 @@ export async function GET() {
     console.log('[API] Fetching featured markets...');
 
     const supabase = await createClient();
-    
+
     // Simple query - cron job does all the intelligence
     const { data: markets, error } = await supabase
       .from('featured_markets')
@@ -39,6 +39,19 @@ export async function GET() {
 
     if (error) {
       console.error('[API] Database error:', error);
+
+      // In development mode without Supabase, return empty array gracefully
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+      if (isDevelopment && error.message?.includes('not configured')) {
+        console.log('[API] Supabase not configured, returning empty markets (dev mode)');
+        return NextResponse.json({
+          success: true,
+          markets: [],
+          count: 0,
+          message: 'Database not configured (development mode)'
+        });
+      }
+
       return NextResponse.json(
         { success: false, error: 'Database query failed', markets: [], count: 0 },
         { status: 500 }
@@ -73,13 +86,13 @@ export async function GET() {
 
   } catch (error) {
     console.error('[API] Unexpected error:', error);
-    
+
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Internal server error', 
-        markets: [], 
-        count: 0 
+      {
+        success: false,
+        error: 'Internal server error',
+        markets: [],
+        count: 0
       },
       { status: 500 }
     );
