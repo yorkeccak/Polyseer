@@ -1,32 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runPolymarketForecastPipeline, runUnifiedForecastPipeline } from '@/lib/agents/orchestrator';
-import { getUser, isSelfHostedMode, DEV_USER_ID } from '@/lib/db';
-import { createAnalysisSession, completeAnalysisSession, failAnalysisSession } from '@/lib/analysis-session';
+import { runUnifiedForecastPipeline } from '@/lib/agents/orchestrator';
 import { parseMarketUrl, isValidMarketUrl } from '@/lib/tools/market-url-parser';
-import { setValyuContext, clearValyuContext } from '@/lib/tools/valyu_search';
+import { checkRateLimit, getIpAddress, rateLimitResponse, addRateLimitHeaders } from '@/lib/rate-limit';
 
 export const maxDuration = 800;
 
+/**
+ * Public Forecast API
+ * No authentication required - rate limited by IP address
+ * Valyu API key is server-side only
+ */
 export async function POST(req: NextRequest) {
-  let sessionId: string | null = null;
-
   try {
-    const isSelfHosted = isSelfHostedMode();
+    // Rate limiting check
+    const ip = getIpAddress(req);
+    const rateLimit = checkRateLimit(ip);
 
-    // Get user (optional in self-hosted mode)
-    const { data: { user } } = await getUser();
+    console.log(`[Forecast API] Request from IP: ${ip}, Remaining: ${rateLimit.remaining}/${rateLimit.limit}`);
 
-    // In valyu mode, authentication is required
-    if (!isSelfHosted && !user) {
-      return NextResponse.json(
-        { error: 'Please sign in with Valyu to analyze markets' },
-        { status: 401 }
-      );
+    if (!rateLimit.allowed) {
+      console.warn(`[Forecast API] Rate limit exceeded for IP: ${ip}`);
+      return rateLimitResponse(rateLimit.resetAt);
     }
-
-    console.log('[Forecast API] Mode:', isSelfHosted ? 'self-hosted' : 'valyu');
-    console.log('[Forecast API] Authenticated user ID:', user?.id || 'anonymous (self-hosted mode)');
-    console.log('[Forecast API] User email:', user?.email || 'none');
 
     const body = await req.json();
     const {
@@ -36,21 +31,7 @@ export async function POST(req: NextRequest) {
       historyInterval = '1d',
       withBooks = true,
       withTrades = false,
-      valyuAccessToken, // Valyu OAuth token for API calls - optional in dev mode
     } = body;
-
-    // In self-hosted mode, Valyu token is optional (will use VALYU_API_KEY)
-    // In valyu mode, Valyu token is required
-    if (!isSelfHosted && !valyuAccessToken) {
-      return NextResponse.json(
-        { error: 'Valyu connection required. Please sign in with Valyu to analyze markets.' },
-        { status: 401 }
-      );
-    }
-
-    // Set Valyu context for tools to use (optional in self-hosted mode)
-    setValyuContext(valyuAccessToken);
-    console.log('[Forecast API] Valyu access token:', valyuAccessToken ? 'present (OAuth)' : 'none (will use API key in self-hosted mode)');
 
     // Determine which parameter was provided and validate
     let finalMarketUrl: string;
@@ -94,15 +75,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create analysis session
-    // In self-hosted mode, use DEV_USER_ID if no user is authenticated
-    const userId = user?.id || (isSelfHosted ? DEV_USER_ID : null);
-    if (userId) {
-      const session = await createAnalysisSession(userId, finalMarketUrl);
-      sessionId = session.id;
-    }
-    // Valyu API usage is handled via OAuth proxy in valyu mode (charged to user's org credits)
-    // In self-hosted mode, uses VALYU_API_KEY directly
+    console.log(`[Forecast API] Analyzing: ${finalMarketUrl}`);
+    console.log(`[Forecast API] Parameters: interval=${historyInterval}, books=${withBooks}, trades=${withTrades}`);
 
     // Create a ReadableStream for Server-Sent Events
     const stream = new ReadableStream({
@@ -116,22 +90,20 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode(payload));
         };
 
-        // Track all analysis steps for storage
-        const analysisSteps: any[] = [];
-
         try {
           // Send initial connection event
-          sendEvent({ type: 'connected', message: 'Starting analysis...', sessionId });
+          sendEvent({
+            type: 'connected',
+            message: 'Starting analysis...',
+            rateLimit: {
+              remaining: rateLimit.remaining,
+              limit: rateLimit.limit,
+              resetAt: new Date(rateLimit.resetAt).toISOString()
+            }
+          });
 
           // Create progress callback for the orchestrator
           const onProgress = (step: string, details: any) => {
-            // Store step for history
-            analysisSteps.push({
-              step,
-              details,
-              timestamp: new Date().toISOString()
-            });
-
             sendEvent({
               type: 'progress',
               step,
@@ -140,12 +112,10 @@ export async function POST(req: NextRequest) {
             }, 'progress');
           };
 
-          // Note: Valyu API usage is tracked via OAuth proxy when valyuAccessToken is set
-          // API calls will be charged to the user's Valyu organization credits
-
           const startTime = Date.now();
 
           // Run unified forecasting pipeline with progress tracking (auto-detects platform)
+          // Valyu API is called server-side with VALYU_API_KEY from environment
           const forecastCard = await runUnifiedForecastPipeline({
             marketUrl: finalMarketUrl,
             drivers,
@@ -153,63 +123,44 @@ export async function POST(req: NextRequest) {
             withBooks,
             withTrades,
             onProgress,
-            sessionId: sessionId || undefined,
           });
 
           const durationSeconds = Math.round((Date.now() - startTime) / 1000);
 
-          // Complete the analysis session with all relevant data
-          if (sessionId) {
-            await completeAnalysisSession(
-              sessionId,
-              forecastCard.markdownReport || JSON.stringify(forecastCard),
-              analysisSteps,
-              forecastCard,
-              {
-                marketQuestion: forecastCard.question,
-                p0: forecastCard.p0,
-                pNeutral: forecastCard.pNeutral,
-                pAware: forecastCard.pAware,
-                drivers: forecastCard.drivers,
-                durationSeconds,
-              }
-            );
-          }
+          console.log(`[Forecast API] Analysis complete in ${durationSeconds}s`);
 
           // Send final result
           sendEvent({
             type: 'complete',
             forecast: forecastCard,
-            sessionId,
-            timestamp: new Date().toISOString()
+            durationSeconds,
+            timestamp: new Date().toISOString(),
+            rateLimit: {
+              remaining: rateLimit.remaining - 1,
+              limit: rateLimit.limit,
+              resetAt: new Date(rateLimit.resetAt).toISOString()
+            }
           }, 'complete');
 
         } catch (error) {
-          console.error('Error in forecast API:', error);
+          console.error('[Forecast API] Error during analysis:', error);
 
           const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-
-          // Mark session as failed
-          if (sessionId) {
-            await failAnalysisSession(sessionId, errorMessage);
-          }
 
           sendEvent({
             type: 'error',
             error: errorMessage,
             details: error instanceof Error ? error.stack : 'No stack trace available',
-            sessionId,
             timestamp: new Date().toISOString()
           }, 'error');
         } finally {
-          // Clear Valyu context
-          clearValyuContext();
           controller.close();
         }
       }
     });
 
-    return new Response(stream, {
+    // Create response with rate limit headers
+    const response = new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -219,14 +170,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-  } catch (error) {
-    console.error('Error setting up forecast stream:', error);
+    return addRateLimitHeaders(response, rateLimit);
 
-    // Mark session as failed if it was created
-    if (sessionId) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      await failAnalysisSession(sessionId, errorMessage);
-    }
+  } catch (error) {
+    console.error('[Forecast API] Error setting up forecast stream:', error);
 
     return NextResponse.json(
       {
@@ -240,8 +187,13 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   return NextResponse.json({
-    message: 'Unified Multi-Platform Forecasting API',
+    message: 'Public AI Forecasting API',
     description: 'AI-powered forecasting using GPT-5 agents - works with Polymarket and Kalshi',
+    rateLimit: {
+      limit: 20,
+      window: '24 hours',
+      note: 'Rate limit is per IP address'
+    },
     usage: 'POST with { marketUrl: string, drivers?: string[], historyInterval?: string, withBooks?: boolean, withTrades?: boolean }',
     parameters: {
       marketUrl: 'Required. Full market URL (Polymarket or Kalshi). Platform is auto-detected.',
@@ -268,11 +220,8 @@ export async function GET() {
       historyInterval: 'System selects optimal interval based on market volume, time until close, and volatility'
     },
     examples: {
-      polymarket: {
+      basic: {
         marketUrl: 'https://polymarket.com/event/will-ai-achieve-agi-by-2030'
-      },
-      kalshi: {
-        marketUrl: 'https://kalshi.com/markets/kxgovshut/government-shutdown/kxgovshut-25oct01'
       },
       withCustomization: {
         marketUrl: 'https://polymarket.com/event/will-trump-win-2024',
