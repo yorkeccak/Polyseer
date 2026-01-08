@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "@ai-sdk/groq": "^2.0.16",
-    "better-sqlite3": "^11.7.0",
-    "drizzle-orm": "^0.44.2",
+    "better-sqlite3": "^12.4.1",
+    "drizzle-orm": "^0.44.7",
     "@ai-sdk/openai": "^2.0.23",
     "@polymarket/clob-client": "^1.0.1",
     "@polymarket/order-utils": "^2.1.0",
@@ -67,7 +67,8 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@types/better-sqlite3": "^7.6.12",
+    "@types/better-sqlite3": "^7.6.13",
+    "drizzle-kit": "^0.31.6",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
