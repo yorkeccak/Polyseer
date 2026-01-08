@@ -9,6 +9,8 @@ import { Evidence, ForecastCard } from '../forecasting/types';
 import { makeForecastCard } from '../forecasting/reportCard';
 import { buildLLMPayloadFromSlug } from '../tools/polymarket';
 import { fetchMarketDataFromUrl, MarketPayload } from '../tools/market-fetcher';
+import { calculateHistoricalPrior, getHistoricalContext } from '../historical/grounding';
+import { HistoricalContext } from '../historical/types';
 
 
 export interface PolymarketOrchestratorOpts {
@@ -154,16 +156,77 @@ export async function runPolymarketForecastPipeline(opts: PolymarketOrchestrator
   );
   
   const question = marketData.market_facts.question;
-  
-  // Calculate prior from current market probability (if available)
-  let p0 = 0.5; // default prior
+
+  // Calculate market price as baseline
+  let marketPrice = 0.5; // default
   if (marketData.market_state_now && marketData.market_state_now.length > 0) {
     const firstOutcome = marketData.market_state_now[0];
     if (firstOutcome.mid !== null && firstOutcome.mid !== undefined) {
-      p0 = Math.max(0.1, Math.min(0.9, firstOutcome.mid)); // clamp between 0.1 and 0.9
+      marketPrice = Math.max(0.1, Math.min(0.9, firstOutcome.mid)); // clamp between 0.1 and 0.9
     }
   }
-  console.log(`📈 Prior (p0) from market mid: ${p0.toFixed(3)}`);
+
+  // Step 3.5: Calculate historically-grounded prior
+  onProgress?.('historical_grounding', {
+    message: 'Analyzing historical precedents and base rates...',
+    question: question
+  });
+
+  console.log(`📚 === HISTORICAL GROUNDING: Calculating Base Rates ===`);
+  const historicalPrior = await calculateHistoricalPrior(question, marketPrice);
+  const historicalContext = await getHistoricalContext(question);
+
+  // Use historically-informed prior
+  const p0 = historicalPrior.probability;
+
+  console.log(`📈 Market price: ${marketPrice.toFixed(3)}`);
+  console.log(`📚 Historical prior: ${p0.toFixed(3)} (${historicalPrior.source})`);
+  if (historicalContext.baseRate) {
+    console.log(`   - Base rate: ${(historicalContext.baseRate.baseRate * 100).toFixed(1)}% from ${historicalContext.baseRate.totalSamples} markets`);
+    console.log(`   - Category: ${historicalContext.baseRate.category}${historicalContext.baseRate.subcategory ? ` / ${historicalContext.baseRate.subcategory}` : ''}`);
+    console.log(`   - Confidence: ${historicalContext.confidence} (sample size: ${historicalContext.sampleSize})`);
+  }
+  if (historicalContext.analogues.length > 0) {
+    console.log(`   - Found ${historicalContext.analogues.length} historical analogues`);
+  }
+  if (historicalContext.warnings.length > 0) {
+    console.log(`⚠️  Historical data warnings:`);
+    historicalContext.warnings.forEach(w => {
+      console.log(`   - [${w.severity}] ${w.message}`);
+    });
+  }
+  console.log(`   - Adjustment reasoning: ${historicalPrior.adjustmentReasoning}`);
+
+  onProgress?.('historical_grounding_complete', {
+    message: 'Historical analysis completed',
+    marketPrice: marketPrice,
+    historicalPrior: p0,
+    priorSource: historicalPrior.source,
+    baseRate: historicalContext.baseRate ? {
+      value: historicalContext.baseRate.baseRate,
+      sampleSize: historicalContext.baseRate.totalSamples,
+      category: historicalContext.baseRate.category,
+      confidence: historicalContext.confidence
+    } : null,
+    analoguesCount: historicalContext.analogues.length,
+    warnings: historicalContext.warnings,
+    response: {
+      historicalPrior: p0,
+      marketPrice: marketPrice,
+      priorAdjustment: p0 - marketPrice,
+      adjustmentReasoning: historicalPrior.adjustmentReasoning,
+      baseRate: historicalContext.baseRate,
+      analogues: historicalContext.analogues.map(a => ({
+        title: a.title,
+        description: a.description,
+        outcome: a.outcome,
+        similarityScore: a.similarityScore,
+        precedentStrength: a.precedentStrength
+      })),
+      uncertaintyBounds: historicalPrior.uncertaintyBounds,
+      warnings: historicalContext.warnings
+    }
+  });
 
   // Create market function that returns current Polymarket probability
   const polymarketFn: MarketFn = async () => {
@@ -397,8 +460,8 @@ export async function runPolymarketForecastPipeline(opts: PolymarketOrchestrator
     message: 'Generating final report...',
     drivers: autoDrivers
   });
-  
-  const markdown = await reporterAgent(question, p0, pNeutral, pAware, influence, clusters, autoDrivers, finalEvidence);
+
+  const markdown = await reporterAgent(question, p0, pNeutral, pAware, influence, clusters, autoDrivers, finalEvidence, historicalContext, marketPrice);
   console.log(`📝 Report generated. length=${markdown.length} chars`);
   console.log(`⏱️  Total pipeline time: ${((Date.now() - t0)/1000).toFixed(1)}s`);
   
@@ -562,15 +625,76 @@ export async function runUnifiedForecastPipeline(opts: UnifiedOrchestratorOpts):
 
   const question = marketData.market_facts.question;
 
-  // Calculate prior from current market probability (if available)
-  let p0 = 0.5; // default prior
+  // Calculate market price as baseline
+  let marketPrice = 0.5; // default
   if (marketData.market_state_now && marketData.market_state_now.length > 0) {
     const firstOutcome = marketData.market_state_now[0];
     if (firstOutcome.mid !== null && firstOutcome.mid !== undefined) {
-      p0 = Math.max(0.1, Math.min(0.9, firstOutcome.mid)); // clamp between 0.1 and 0.9
+      marketPrice = Math.max(0.1, Math.min(0.9, firstOutcome.mid)); // clamp between 0.1 and 0.9
     }
   }
-  console.log(`📈 Prior (p0) from market mid: ${p0.toFixed(3)}`);
+
+  // Step 3.5: Calculate historically-grounded prior
+  onProgress?.('historical_grounding', {
+    message: 'Analyzing historical precedents and base rates...',
+    question: question
+  });
+
+  console.log(`📚 === HISTORICAL GROUNDING: Calculating Base Rates ===`);
+  const historicalPrior = await calculateHistoricalPrior(question, marketPrice);
+  const historicalContext = await getHistoricalContext(question);
+
+  // Use historically-informed prior
+  const p0 = historicalPrior.probability;
+
+  console.log(`📈 Market price: ${marketPrice.toFixed(3)}`);
+  console.log(`📚 Historical prior: ${p0.toFixed(3)} (${historicalPrior.source})`);
+  if (historicalContext.baseRate) {
+    console.log(`   - Base rate: ${(historicalContext.baseRate.baseRate * 100).toFixed(1)}% from ${historicalContext.baseRate.totalSamples} markets`);
+    console.log(`   - Category: ${historicalContext.baseRate.category}${historicalContext.baseRate.subcategory ? ` / ${historicalContext.baseRate.subcategory}` : ''}`);
+    console.log(`   - Confidence: ${historicalContext.confidence} (sample size: ${historicalContext.sampleSize})`);
+  }
+  if (historicalContext.analogues.length > 0) {
+    console.log(`   - Found ${historicalContext.analogues.length} historical analogues`);
+  }
+  if (historicalContext.warnings.length > 0) {
+    console.log(`⚠️  Historical data warnings:`);
+    historicalContext.warnings.forEach(w => {
+      console.log(`   - [${w.severity}] ${w.message}`);
+    });
+  }
+  console.log(`   - Adjustment reasoning: ${historicalPrior.adjustmentReasoning}`);
+
+  onProgress?.('historical_grounding_complete', {
+    message: 'Historical analysis completed',
+    marketPrice: marketPrice,
+    historicalPrior: p0,
+    priorSource: historicalPrior.source,
+    baseRate: historicalContext.baseRate ? {
+      value: historicalContext.baseRate.baseRate,
+      sampleSize: historicalContext.baseRate.totalSamples,
+      category: historicalContext.baseRate.category,
+      confidence: historicalContext.confidence
+    } : null,
+    analoguesCount: historicalContext.analogues.length,
+    warnings: historicalContext.warnings,
+    response: {
+      historicalPrior: p0,
+      marketPrice: marketPrice,
+      priorAdjustment: p0 - marketPrice,
+      adjustmentReasoning: historicalPrior.adjustmentReasoning,
+      baseRate: historicalContext.baseRate,
+      analogues: historicalContext.analogues.map(a => ({
+        title: a.title,
+        description: a.description,
+        outcome: a.outcome,
+        similarityScore: a.similarityScore,
+        precedentStrength: a.precedentStrength
+      })),
+      uncertaintyBounds: historicalPrior.uncertaintyBounds,
+      warnings: historicalContext.warnings
+    }
+  });
 
   // Create market function that returns current market probability
   const marketFn: MarketFn = async () => {
@@ -802,7 +926,7 @@ export async function runUnifiedForecastPipeline(opts: UnifiedOrchestratorOpts):
     drivers: autoDrivers
   });
 
-  const markdown = await reporterAgent(question, p0, pNeutral, pAware, influence, clusters, autoDrivers, finalEvidence);
+  const markdown = await reporterAgent(question, p0, pNeutral, pAware, influence, clusters, autoDrivers, finalEvidence, historicalContext, marketPrice);
   console.log(`📝 Report generated. length=${markdown.length} chars`);
   console.log(`⏱️  Total pipeline time: ${((Date.now() - t0)/1000).toFixed(1)}s`);
 
