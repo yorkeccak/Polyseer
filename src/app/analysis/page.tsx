@@ -232,15 +232,19 @@ function AnalysisContent() {
       });
     }
 
-    // User must be authenticated with Valyu
-    if (!user) {
+    // Check if we're in development mode
+    const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+
+    // In production, user must be authenticated with Valyu
+    // In development, authentication is optional
+    if (!isDevelopment && !user) {
       setError('VALYU_SIGNIN_REQUIRED');
       return;
     }
 
-    // Get Valyu access token for API calls - required
+    // Get Valyu access token for API calls (optional in development mode)
     const valyuAccessToken = await getValidAccessToken();
-    if (!valyuAccessToken) {
+    if (!isDevelopment && !valyuAccessToken) {
       setError('VALYU_SIGNIN_REQUIRED');
       return;
     }

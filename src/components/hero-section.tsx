@@ -206,7 +206,7 @@ export default function HeroSection({ onAnalyze, isAnalyzing, onShowHowItWorks, 
               <div className="relative flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/30">
                 <span className="text-sm text-white/80 font-medium">Powered by</span>
                 <a
-                  href="https://valyu.network"
+                  href="https://valyu.ai"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center hover:scale-105 transition-transform pt-0.5"

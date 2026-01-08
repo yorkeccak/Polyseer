@@ -1,13 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-
-const UnicornScene = dynamic(
-  () => import("@/components/ui/unicorn-scene").then((mod) => mod.default),
-  { ssr: false }
-);
 
 interface LoadingScreenProps {
   onComplete: () => void;
@@ -15,10 +9,8 @@ interface LoadingScreenProps {
 
 export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   const [phase, setPhase] = useState<"intro" | "reveal" | "exit">("intro");
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     
     // Phase 2: Reveal phase
     const timer2 = setTimeout(() => {
@@ -49,13 +41,8 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.8, ease: "easeInOut" }}
-          className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden"
+          className="fixed inset-0 z-[100] bg-gradient-to-br from-neutral-900 via-black to-neutral-900 flex items-center justify-center overflow-hidden"
         >
-          {/* UnicornStudio background */}
-          <div className="absolute inset-0">
-            {mounted && <UnicornScene />}
-          </div>
-
           {/* Logo text */}
           <div className="relative z-10">
             <motion.div

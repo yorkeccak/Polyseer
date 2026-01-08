@@ -786,7 +786,7 @@ export default function TermsOfService() {
                     9.1 Informal Resolution
                   </h3>
                   <p className="leading-relaxed text-neutral-700 dark:text-neutral-300">
-                    Before initiating any formal dispute resolution process, you agree to first contact us at contact@valyu.network to attempt to resolve any dispute informally. We will attempt to resolve the dispute by contacting you via email. If a dispute is not resolved within thirty (30) days of submission, either party may proceed as set forth below.
+                    Before initiating any formal dispute resolution process, you agree to first contact us at contact@valyu.ai to attempt to resolve any dispute informally. We will attempt to resolve the dispute by contacting you via email. If a dispute is not resolved within thirty (30) days of submission, either party may proceed as set forth below.
                   </p>
                 </div>
 
@@ -987,7 +987,7 @@ export default function TermsOfService() {
                     </li>
                   </ul>
                   <p className="leading-relaxed text-neutral-700 dark:text-neutral-300 mt-4">
-                    To exercise any of these rights, please contact us at contact@valyu.network. We will respond to your request within the timeframes required by applicable law.
+                    To exercise any of these rights, please contact us at contact@valyu.ai. We will respond to your request within the timeframes required by applicable law.
                   </p>
                 </div>
 
@@ -1112,7 +1112,7 @@ export default function TermsOfService() {
                 <ul className="space-y-2 text-neutral-700 dark:text-neutral-300">
                   <li className="flex items-center">
                     <span className="text-blue-500 mr-3">Email:</span>
-                    <span>contact@valyu.network</span>
+                    <span>contact@valyu.ai</span>
                   </li>
                   <li className="flex items-center">
                     <span className="text-blue-500 mr-3">Website:</span>

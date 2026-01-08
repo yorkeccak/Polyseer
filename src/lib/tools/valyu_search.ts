@@ -79,13 +79,58 @@ export type ValyuToolResult = {
 };
 
 /**
- * Call Valyu API via OAuth proxy - requires user token
+ * Call Valyu API via OAuth proxy (production) or direct API key (development)
  */
 async function callValyuApi(
   path: string,
   body: any,
   valyuAccessToken?: string
 ): Promise<ValyuSearchResponse> {
+  const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+
+  // Development mode: Use VALYU_API_KEY directly
+  if (isDevelopment && !valyuAccessToken) {
+    const apiKey = process.env.VALYU_API_KEY;
+    if (!apiKey) {
+      console.error('[callValyuApi] Development mode requires VALYU_API_KEY');
+      return {
+        success: false,
+        error: "Development mode requires VALYU_API_KEY environment variable",
+      };
+    }
+
+    console.log('[callValyuApi] Development mode - using VALYU_API_KEY directly');
+
+    // Import Valyu SDK dynamically
+    const { Valyu } = await import('valyu-js');
+    const valyu = new Valyu(apiKey, 'https://api.valyu.ai/v1');
+
+    try {
+      // Call Valyu SDK directly based on path
+      if (path === '/v1/deepsearch') {
+        const result = await valyu.search(body.query, body);
+        return {
+          success: true,
+          results: result.results || [],
+          tx_id: result.tx_id || undefined,
+          total_deduction_dollars: result.total_deduction_dollars,
+        };
+      }
+
+      return {
+        success: false,
+        error: `Unknown API path: ${path}`,
+      };
+    } catch (error: any) {
+      console.error('[callValyuApi] SDK error:', error);
+      return {
+        success: false,
+        error: error.message || 'Valyu SDK request failed',
+      };
+    }
+  }
+
+  // Production mode: Require OAuth token
   if (!valyuAccessToken) {
     console.error('[callValyuApi] No Valyu access token - user must sign in with Valyu');
     return {

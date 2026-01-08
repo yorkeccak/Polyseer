@@ -15,70 +15,24 @@ function DiscordIcon({ className }: { className?: string }) {
 }
 
 export function MigrationBanner() {
-  const [showMigration, setShowMigration] = useState(false);
   const [showDiscord, setShowDiscord] = useState(false);
 
   useEffect(() => {
-    const migrationDismissed = localStorage.getItem(MIGRATION_STORAGE_KEY);
     const discordDismissed = localStorage.getItem(DISCORD_STORAGE_KEY);
 
-    if (!migrationDismissed) {
-      // Show migration banner first
-      setShowMigration(true);
-
-      // Auto-hide after 10 seconds
-      const timer = setTimeout(() => {
-        dismissMigration();
-      }, 10000);
-
-      return () => clearTimeout(timer);
-    } else if (!discordDismissed) {
-      // Migration already dismissed, show Discord banner
-      setShowDiscord(true);
-    }
-  }, []);
-
-  const dismissMigration = () => {
-    setShowMigration(false);
-    localStorage.setItem(MIGRATION_STORAGE_KEY, 'true');
-
-    // Show Discord banner after migration banner is dismissed
-    const discordDismissed = localStorage.getItem(DISCORD_STORAGE_KEY);
     if (!discordDismissed) {
       setShowDiscord(true);
     }
-  };
+  }, []);
 
   const dismissDiscord = () => {
     setShowDiscord(false);
     localStorage.setItem(DISCORD_STORAGE_KEY, 'true');
   };
 
-  if (showMigration) {
-    return (
-      <div className="fixed top-0 left-0 right-0 z-50 animate-in slide-in-from-top duration-300">
-        <div className="bg-muted/80 backdrop-blur-sm border-b border-border/50">
-          <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              This app now uses <span className="font-medium text-foreground">Sign in with Valyu</span>.
-              If you had an account, sign in with Valyu to access your chat history.
-            </p>
-            <button
-              onClick={dismissMigration}
-              className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-              aria-label="Dismiss"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (showDiscord) {
     return (
-      <div className="fixed top-3 left-3 z-50 animate-in slide-in-from-left duration-300">
+      <div className="fixed bottom-4 left-4 z-50 animate-in slide-in-from-left duration-300">
         <div className="bg-[#5865F2] text-white rounded-full px-3 py-1.5 shadow-lg flex items-center gap-2">
           <a
             href="https://discord.gg/BhUWrFbHRa"
