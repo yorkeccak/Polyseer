@@ -79,27 +79,27 @@ export type ValyuToolResult = {
 };
 
 /**
- * Call Valyu API via OAuth proxy (production) or direct API key (development)
+ * Call Valyu API via OAuth proxy (valyu mode) or direct API key (self-hosted mode)
  */
 async function callValyuApi(
   path: string,
   body: any,
   valyuAccessToken?: string
 ): Promise<ValyuSearchResponse> {
-  const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+  const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted';
 
-  // Development mode: Use VALYU_API_KEY directly
+  // Self-hosted mode: Use VALYU_API_KEY directly
   if (isDevelopment && !valyuAccessToken) {
     const apiKey = process.env.VALYU_API_KEY;
     if (!apiKey) {
-      console.error('[callValyuApi] Development mode requires VALYU_API_KEY');
+      console.error('[callValyuApi] Self-hosted mode requires VALYU_API_KEY');
       return {
         success: false,
-        error: "Development mode requires VALYU_API_KEY environment variable",
+        error: "Self-hosted mode requires VALYU_API_KEY environment variable",
       };
     }
 
-    console.log('[callValyuApi] Development mode - using VALYU_API_KEY directly');
+    console.log('[callValyuApi] Self-hosted mode - using VALYU_API_KEY directly');
 
     // Import Valyu SDK dynamically
     const { Valyu } = await import('valyu-js');

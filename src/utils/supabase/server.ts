@@ -8,11 +8,11 @@ export async function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // In development mode, Supabase is optional
+  // In self-hosted mode, Supabase is optional
   if (!supabaseUrl || !supabaseAnonKey) {
-    const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development'
+    const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted'
     if (isDevelopment) {
-      console.log('[Supabase] Running without database (development mode)')
+      console.log('[Supabase] Running without database (self-hosted mode)')
       // Return a mock client that returns null for auth
       return {
         auth: {
@@ -55,13 +55,13 @@ export function createServiceClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !serviceRoleKey) {
-    const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development'
+    const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted'
     if (isDevelopment) {
       console.log('[Supabase] Service client not available (no credentials)')
       // Return a mock client
       return {
         from: () => {
-          throw new Error('Supabase service role not configured. This is only needed for production.')
+          throw new Error('Supabase service role not configured. This is only needed for valyu mode.')
         },
         auth: {
           admin: {
