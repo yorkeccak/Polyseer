@@ -1,12 +1,12 @@
-import { generateText, Output } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { generateText, generateObject } from 'ai';
 import { z } from 'zod';
 import { Evidence } from '../forecasting/types';
 import { valyuDeepSearchTool, valyuWebSearchTool } from '../tools/valyu_search';
+import { getLargeModel, getSmallModel } from '../models';
 
-// Model helpers - using OpenAI directly (costs handled via Valyu OAuth proxy for search)
-const getModelSmall = () => openai('gpt-4o-mini');
-const getModel = () => openai('gpt-4o');
+// Model helpers
+const getModelSmall = () => getSmallModel();
+const getModel = () => getLargeModel();
 
 interface MarketData {
   market_facts: {
@@ -35,18 +35,18 @@ const EvidenceItemSchema = z.object({
   polarity: z.enum(['1', '-1']).describe('Whether this supports (1) or contradicts (-1) the outcome'),
   type: z.enum(['A', 'B', 'C', 'D']).describe('Evidence quality: A=primary data, B=secondary analysis, C=tertiary sources, D=weak sources'),
   publishedAt: z.string().optional().describe('Publication date in ISO format'),
-  urls: z.array(z.string().url()).min(0).describe('Source URLs from search results (empty array if no sources)'),
+  urls: z.array(z.string()).describe('Source URLs from search results (empty array if no sources)'),
   originId: z.string().describe('Source identifier for deduplication'),
   firstReport: z.boolean().default(false).describe('Whether this is the first report of this information'),
-  verifiability: z.number().min(0).max(1).describe('How verifiable this claim is (0-1)'),
-  corroborationsIndep: z.number().int().min(0).describe('Number of independent corroborations'),
-  consistency: z.number().min(0).max(1).describe('Internal logical consistency (0-1)'),
+  verifiability: z.number().describe('How verifiable this claim is (0-1)'),
+  corroborationsIndep: z.number().describe('Number of independent corroborations (integer, 0 or more)'),
+  consistency: z.number().describe('Internal logical consistency (0-1)'),
   pathway: z.string().optional().describe('Causal pathway/catalyst category (e.g., platform-policy, release/tour, viral, award/media, regulatory)'),
-  connectionStrength: z.number().min(0).max(1).optional().describe('Strength of linkage between this signal and the predicted outcome')
+  connectionStrength: z.number().optional().describe('Strength of linkage between this signal and the predicted outcome (0-1)')
 });
 
 const EvidenceSchema = z.object({
-  items: z.array(EvidenceItemSchema).min(0).max(10).describe('Array of evidence items found through research (up to 10)')
+  items: z.array(EvidenceItemSchema).describe('Array of evidence items found through research (provide up to 10)')
 });
 
 function isRecentEnough(dateStr?: string): boolean {
@@ -372,33 +372,26 @@ Now create 4-8 high-quality evidence items in JSON format matching this schema (
 
 Return ONLY the JSON object, no other text.`;
 
-    const structuredResult = await generateText({
+    const structuredResult = await generateObject({
       model: getModelSmall(),
+      schema: EvidenceSchema,
       system: 'You are a structured data generator. Return only valid JSON matching the exact schema provided.',
       prompt: evidencePrompt,
-      experimental_output: Output.object({
-        schema: EvidenceSchema,
-      }),
     });
 
-    // Access the structured output, normalize, dedupe, and enforce recency, then fresh-first select
-    if (structuredResult.experimental_output) {
-      const itemsRaw = structuredResult.experimental_output.items.map((item: any) => ({
-        ...item,
-        polarity: item.polarity === '1' ? 1 : -1 // Convert string to number
-      }));
-      let items = dedupeAndNormalizeEvidence(itemsRaw as Evidence[]);
-      const before = items.length;
-      items = items.filter(e => isRecentEnough(e.publishedAt));
-      if (before !== items.length) {
-        console.warn(`🚫 Dropped ${before - items.length} old/undated evidence items (kept ${items.length}) for ${side}`);
-      }
-      items = freshFirst(items, { maxItems: 8, minItems: 4, maxOldFrac: 0.25 });
-      return items;
-    } else {
-      console.warn(`No structured output generated for ${side} research`);
-      return [];
+    // Normalize, dedupe, and enforce recency, then fresh-first select
+    const itemsRaw = structuredResult.object.items.map((item: any) => ({
+      ...item,
+      polarity: item.polarity === '1' ? 1 : -1 // Convert string to number
+    }));
+    let items = dedupeAndNormalizeEvidence(itemsRaw as Evidence[]);
+    const before = items.length;
+    items = items.filter(e => isRecentEnough(e.publishedAt));
+    if (before !== items.length) {
+      console.warn(`🚫 Dropped ${before - items.length} old/undated evidence items (kept ${items.length}) for ${side}`);
     }
+    items = freshFirst(items, { maxItems: 8, minItems: 4, maxOldFrac: 0.25 });
+    return items;
   } catch (error) {
     console.error(`Error in ${side} research:`, error);
     return []; // Return empty array instead of throwing
@@ -533,24 +526,21 @@ JSON schema:
 
 Return ONLY the JSON.`;
 
-    const structured = await generateText({
+    const structured = await generateObject({
       model: getModel(),
+      schema: EvidenceSchema,
       system: 'You are a structured data generator. Return only valid JSON matching the exact schema provided.',
       prompt: evidencePrompt,
-      experimental_output: Output.object({ schema: EvidenceSchema }),
     });
 
-    if (structured.experimental_output) {
-      let items = structured.experimental_output.items.map((item: any) => ({
-        ...item,
-        polarity: item.polarity === '1' ? 1 : -1,
-      })) as Evidence[];
-      items = dedupeAndNormalizeEvidence(items);
-      items = items.filter(e => isRecentEnough(e.publishedAt));
-      items = freshFirst(items, { maxItems: 6, minItems: 3, maxOldFrac: 0.25 });
-      return items;
-    }
-    return [];
+    let items = structured.object.items.map((item: any) => ({
+      ...item,
+      polarity: item.polarity === '1' ? 1 : -1,
+    })) as Evidence[];
+    items = dedupeAndNormalizeEvidence(items);
+    items = items.filter(e => isRecentEnough(e.publishedAt));
+    items = freshFirst(items, { maxItems: 6, minItems: 3, maxOldFrac: 0.25 });
+    return items;
   } catch (e) {
     console.error('Error in adjacent research:', e);
     return [];
@@ -643,33 +633,26 @@ AUTOMATIC CLASSIFICATION HINTS:
 
 Return ONLY the JSON object, no other text.`;
 
-    const structuredResult = await generateText({
+    const structuredResult = await generateObject({
       model: getModelSmall(),
+      schema: EvidenceSchema,
       system: 'You are a structured data generator. Return only valid JSON matching the exact schema provided.',
       prompt: evidencePrompt,
-      experimental_output: Output.object({
-        schema: EvidenceSchema,
-      }),
     });
 
-    // Access the structured output, normalize, dedupe, and enforce recency, then fresh-first select
-    if (structuredResult.experimental_output) {
-      const itemsRaw = structuredResult.experimental_output.items.map((item: any) => ({
-        ...item,
-        polarity: (search.side === 'NEUTRAL' || search.side === 'BOTH') ? 0 : (item.polarity === '1' ? 1 : -1) // Convert string to number, handle NEUTRAL/BOTH
-      }));
-      let items = dedupeAndNormalizeEvidence(itemsRaw as Evidence[]);
-      const before = items.length;
-      items = items.filter(e => isRecentEnough(e.publishedAt));
-      if (before !== items.length) {
-        console.warn(`🚫 Dropped ${before - items.length} old/undated evidence items (kept ${items.length}) for ${search.side} follow-up`);
-      }
-      items = freshFirst(items, { maxItems: 6, minItems: 2, maxOldFrac: 0.25 });
-      return items;
-    } else {
-      console.warn(`No structured output generated for targeted research: ${search.query}`);
-      return [];
+    // Normalize, dedupe, and enforce recency, then fresh-first select
+    const itemsRaw = structuredResult.object.items.map((item: any) => ({
+      ...item,
+      polarity: (search.side === 'NEUTRAL' || search.side === 'BOTH') ? 0 : (item.polarity === '1' ? 1 : -1) // Convert string to number, handle NEUTRAL/BOTH
+    }));
+    let items = dedupeAndNormalizeEvidence(itemsRaw as Evidence[]);
+    const before = items.length;
+    items = items.filter(e => isRecentEnough(e.publishedAt));
+    if (before !== items.length) {
+      console.warn(`🚫 Dropped ${before - items.length} old/undated evidence items (kept ${items.length}) for ${search.side} follow-up`);
     }
+    items = freshFirst(items, { maxItems: 6, minItems: 2, maxOldFrac: 0.25 });
+    return items;
   } catch (error) {
     console.error(`Error in targeted research for "${search.query}":`, error);
     return [];

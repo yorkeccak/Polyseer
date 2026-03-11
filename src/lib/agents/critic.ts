@@ -1,12 +1,12 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { openai } from '@ai-sdk/openai';
 import { Evidence } from '../forecasting/types';
+import { getLargeModel } from '../models';
 
 // Model helper
-const getModel = () => openai('gpt-4o');
+const getModel = () => getLargeModel();
 
-export const CritiqueSchema = z.object({
+export const CritiqueSchemaRaw = z.object({
   missing: z.array(z.string()).describe('missed disconfirming evidence or failure modes'),
   duplicationFlags: z.array(z.string()).describe('evidence ids suspected duplicate wiring'),
   dataConcerns: z.array(z.string()).describe('measurement or selection bias risks'),
@@ -14,16 +14,22 @@ export const CritiqueSchema = z.object({
     query: z.string().describe('specific search query to fill gaps'),
     rationale: z.string().describe('why this search is needed'),
     side: z.enum(['FOR', 'AGAINST', 'NEUTRAL', 'BOTH']).describe('which side this search targets')
-  })).max(10).describe('targeted searches to fill identified gaps'),
-  correlationAdjustments: z.record(z.string(), z.number().min(0).max(1)).describe('suggested correlation adjustments for evidence clusters'),
+  })).describe('targeted searches to fill identified gaps (provide up to 10)'),
+  correlationAdjustments: z.array(z.object({
+    clusterId: z.string().describe('originId of the evidence cluster (e.g. "reuters-001")'),
+    correlation: z.number().describe('correlation value (0-1)')
+  })).describe('suggested correlation adjustments for evidence clusters that seem related'),
   confidenceIssues: z.array(z.string()).describe('factors that should reduce confidence in the forecast')
 });
-export type Critique = z.infer<typeof CritiqueSchema>;
+
+export type Critique = Omit<z.infer<typeof CritiqueSchemaRaw>, 'correlationAdjustments'> & {
+  correlationAdjustments: Record<string, number>;
+};
 
 export async function criticAgent(question: string, pro: Evidence[], con: Evidence[]): Promise<Critique> {
   const { object } = await generateObject({
     model: getModel(),
-    schema: CritiqueSchema,
+    schema: CritiqueSchemaRaw,
     system: `You are the Skeptic. Your job is to identify gaps, biases, and quality issues in the evidence, then provide actionable feedback to improve the analysis.`,
     prompt: `Question: ${question}
 
@@ -57,11 +63,19 @@ FOLLOW-UP SEARCH GUIDELINES:
  - Prefer sources with explicit publication dates; avoid undated/archival items
 
 CORRELATION ADJUSTMENTS FORMAT:
-- Use originId as key (e.g., "reuters-001", "bloomberg-002")
-- Use correlation value 0-1 as value (e.g., 0.8 for highly correlated sources)
-- Example: {"reuters-001": 0.8, "bloomberg-002": 0.6}
+- Provide an array of {clusterId, correlation} objects
+- clusterId: originId of the evidence cluster (e.g., "reuters-001", "bloomberg-002")
+- correlation: value 0-1 (e.g., 0.8 for highly correlated sources)
+- Example: [{"clusterId": "reuters-001", "correlation": 0.8}, {"clusterId": "bloomberg-002", "correlation": 0.6}]
 
 Return comprehensive JSON analysis matching the exact schema.`,
   });
-  return object;
+
+  // Convert correlationAdjustments from array to Record<string, number>
+  const correlationAdjustments: Record<string, number> = {};
+  for (const { clusterId, correlation } of object.correlationAdjustments) {
+    correlationAdjustments[clusterId] = correlation;
+  }
+
+  return { ...object, correlationAdjustments };
 }

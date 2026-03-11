@@ -1,9 +1,9 @@
 import { generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
 import { InfluenceItem, ClusterMeta, Evidence } from '../forecasting/types';
+import { getSmallModel } from '../models';
 
 // Model helper
-const getModel = () => openai('gpt-4o-mini');
+const getModel = () => getSmallModel();
 
 export async function reporterAgent(
   question: string,

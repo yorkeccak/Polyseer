@@ -4,11 +4,11 @@ import { evidenceLogLR, TYPE_CAPS } from '../forecasting/evidence';
 import { clamp } from '../forecasting/math';
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { openai } from '@ai-sdk/openai';
+import { getLargeModel, getSmallModel, getPowerModel } from '../models';
 
 // Model helpers
-const getModel = () => openai('gpt-4o');
-const getModelSmall = () => openai('gpt-4o-mini');
+const getModel = () => getLargeModel();
+const getModelSmall = () => getSmallModel();
 
 export interface MarketSnapshot { 
   probability: number; 
@@ -99,14 +99,14 @@ For each evidence item, determine if it's directly relevant to answering the pre
 const NicheSchema = z.object({
   niche: z.array(z.object({
     id: z.string(),
-    authority: z.number().min(0).max(1),
+    authority: z.number().describe('Niche authority score (0-1)'),
     rationale: z.string().describe('Why this source is considered niche-credible for this topic')
   }))
 });
 
 async function analyzeNicheAuthority(evidence: Evidence[], question: string): Promise<Record<string, number>> {
   if (evidence.length === 0) return {};
-  const model = openai('gpt-5');
+  const model = getPowerModel();
   try {
     const list = evidence.map(e => {
       const domain = e.urls && e.urls.length ? (() => { try { return new URL(e.urls[0]).hostname.replace(/^www\./,''); } catch { return 'unknown'; } })() : 'unknown';

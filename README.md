@@ -213,7 +213,7 @@ Each piece of evidence receives an influence score based on:
 
 ### Backend & APIs
 - **AI SDK** - LLM orchestration
-- **GPT-4o / GPT-5** - Advanced reasoning models
+- **GPT-4o / GPT-5** (OpenAI) or **Claude Sonnet / Haiku / Opus** (Anthropic) - Advanced reasoning models
 - **Valyu API** - Search and research capabilities
 - **Polymarket API** - Market data fetching
 - **Kalshi API** - Market data fetching
@@ -236,7 +236,7 @@ Each piece of evidence receives an influence score based on:
 
 - **Node.js 18+**
 - **npm/pnpm/yarn**
-- **OpenAI API key** - For GPT-4o / GPT-5 access
+- **LLM API key** - OpenAI (default) or Anthropic/Claude
 - **Valyu API key** - For search capabilities (get at [platform.valyu.ai](https://platform.valyu.ai))
 
 ### 1. Clone the Repository
@@ -268,13 +268,23 @@ NEXT_PUBLIC_APP_MODE=self-hosted
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 # ===========================================
+# LLM Provider (choose one)
+# ===========================================
+# Option A: OpenAI (default)
+# Get your OpenAI API key at: https://platform.openai.com
+# LLM_PROVIDER=openai
+# OPENAI_API_KEY=sk-your_openai_api_key_here
+
+# Option B: Anthropic/Claude
+# Get your Anthropic API key at: https://console.anthropic.com
+# LLM_PROVIDER=anthropic
+# ANTHROPIC_API_KEY=sk-ant-your_anthropic_api_key_here
+
+# ===========================================
 # Required API Keys
 # ===========================================
 # Get your Valyu API key at: https://platform.valyu.ai
 VALYU_API_KEY=valyu_your_api_key_here
-
-# Get your OpenAI API key at: https://platform.openai.com
-OPENAI_API_KEY=sk-your_openai_api_key_here
 ```
 
 That's it! Self-hosted mode uses a local SQLite database that's automatically created.
@@ -306,10 +316,18 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # ===========================================
+# LLM Provider (choose one)
+# ===========================================
+# LLM_PROVIDER=openai
+# OPENAI_API_KEY=sk-your_openai_api_key_here
+# or
+# LLM_PROVIDER=anthropic
+# ANTHROPIC_API_KEY=sk-ant-your_anthropic_api_key_here
+
+# ===========================================
 # Required API Keys
 # ===========================================
 VALYU_API_KEY=valyu_your_api_key_here
-OPENAI_API_KEY=sk-your_openai_api_key_here
 ```
 
 ### 4. Start the Development Server
@@ -429,7 +447,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ### Powered By
 - **valyuAI**: Real-time search API
-- **OpenAI GPT-4o / GPT-5**: Advanced reasoning capabilities
+- **OpenAI GPT-4o / GPT-5** or **Anthropic Claude**: Advanced reasoning capabilities
 - **Polymarket**: Prediction market data
 - **Kalshi**: Prediction market data
 

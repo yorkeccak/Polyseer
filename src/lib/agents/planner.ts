@@ -1,21 +1,21 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { openai } from '@ai-sdk/openai';
+import { getLargeModel } from '../models';
 
 // Model helper
-const getModel = () => openai('gpt-4o');
+const getModel = () => getLargeModel();
 
 export const PlanSchema = z.object({
-  subclaims: z.array(z.string().min(5)).min(2).max(10).describe('Causal factors and pathways that could lead to the outcome'),
-  keyVariables: z.array(z.string()).min(2).max(15).describe('Observable indicators and metrics to monitor'),
-  searchSeeds: z.array(z.string()).min(20).max(20).describe('Specific search queries to find relevant information (exactly 20).'),
-  decisionCriteria: z.array(z.string()).min(3).max(8).describe('Clear criteria for how to resolve the question'),
+  subclaims: z.array(z.string()).describe('Causal factors and pathways that could lead to the outcome (provide 2-10)'),
+  keyVariables: z.array(z.string()).describe('Observable indicators and metrics to monitor (provide 2-15)'),
+  searchSeeds: z.array(z.string()).describe('Specific search queries to find relevant information (provide exactly 20)'),
+  decisionCriteria: z.array(z.string()).describe('Clear criteria for how to resolve the question (provide 3-8)'),
   recency: z.object({
     needed: z.boolean().describe('Whether strict recency (2024–2025) is critical to answer this question'),
     startDate: z.string().optional().describe('ISO date (YYYY-MM-DD) to use as start date when filtering results if needed')
   }).describe('Recency guidance for search queries and filtering'),
-  adjacentEventTypes: z.array(z.string()).min(4).max(10).describe('General adjacent signal types to monitor (e.g., platform-policy changes, regulatory, awards/media, viral trends, distribution changes)'),
-  adjacentSeeds: z.array(z.string()).min(6).max(12).describe('Smaller adjacent batch of queries targeting catalysts/competitors/platform changes (6-12)')
+  adjacentEventTypes: z.array(z.string()).describe('General adjacent signal types to monitor (e.g., platform-policy changes, regulatory, awards/media, viral trends, distribution changes) (provide 4-10)'),
+  adjacentSeeds: z.array(z.string()).describe('Smaller adjacent batch of queries targeting catalysts/competitors/platform changes (provide 6-12)')
 });
 
 export type Plan = z.infer<typeof PlanSchema>;
