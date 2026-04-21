@@ -65,6 +65,7 @@ When enabled, the research agents may call Adanos only for markets that clearly 
 ADANOS_API_KEY=your_adanos_key
 ADANOS_API_BASE_URL=https://api.adanos.org
 ADANOS_SENTIMENT_DEFAULT_DAYS=7
+ADANOS_API_TIMEOUT_MS=10000
 ```
 
 ---

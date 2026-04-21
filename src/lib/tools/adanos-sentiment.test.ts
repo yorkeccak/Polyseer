@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildAdanosSummary, normalizeCompareRows, normalizeTickers } from "./adanos-sentiment";
+import {
+  buildAdanosSummary,
+  executeAdanosMarketSentiment,
+  normalizeCompareRows,
+  normalizeTickers,
+} from "./adanos-sentiment";
 
 test("normalizeTickers deduplicates and filters invalid symbols", () => {
   assert.deepEqual(
@@ -91,4 +96,91 @@ test("buildAdanosSummary includes successful rows and unavailable sources", () =
 
   assert.match(summary, /reddit: TSLA \(Tesla, Inc\.\): sentiment=0.34, buzz=72.5/);
   assert.match(summary, /news: unavailable \(HTTP 429\)/);
+});
+
+test("executeAdanosMarketSentiment fails open when API key is missing", async () => {
+  const originalApiKey = process.env.ADANOS_API_KEY;
+  const originalFetch = globalThis.fetch;
+
+  delete process.env.ADANOS_API_KEY;
+  globalThis.fetch = async () => {
+    throw new Error("fetch should not be called without ADANOS_API_KEY");
+  };
+
+  try {
+    const result = await executeAdanosMarketSentiment({
+      tickers: ["TSLA"],
+      source: "all",
+      days: 7,
+    });
+
+    assert.equal(result?.success, false);
+    assert.equal(result?.enabled, false);
+    assert.match(result?.summary || "", /disabled because ADANOS_API_KEY is not configured/i);
+    assert.equal(result?.snapshots.length, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) {
+      delete process.env.ADANOS_API_KEY;
+    } else {
+      process.env.ADANOS_API_KEY = originalApiKey;
+    }
+  }
+});
+
+test("executeAdanosMarketSentiment requests compare endpoint and normalizes returned rows", async () => {
+  const originalApiKey = process.env.ADANOS_API_KEY;
+  const originalFetch = globalThis.fetch;
+
+  process.env.ADANOS_API_KEY = "test-key";
+
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    requests.push({ url: String(input), init });
+
+    return new Response(
+      JSON.stringify({
+        stocks: [
+          {
+            ticker: "TSLA",
+            company_name: "Tesla, Inc.",
+            sentiment_score: "0.31",
+            buzz_score: "71.2",
+            mentions: "140",
+            trend: "rising",
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  };
+
+  try {
+    const result = await executeAdanosMarketSentiment({
+      tickers: ["$tsla", "bad ticker"],
+      source: "reddit",
+      days: 5,
+    });
+
+    assert.equal(requests.length, 1);
+    assert.match(requests[0]?.url || "", /https:\/\/api\.adanos\.org\/reddit\/stocks\/v1\/compare\?tickers=TSLA&days=5/);
+    assert.equal((requests[0]?.init?.headers as Record<string, string>)["X-API-Key"], "test-key");
+
+    assert.equal(result?.success, true);
+    assert.equal(result?.enabled, true);
+    assert.deepEqual(result?.tickers, ["TSLA"]);
+    assert.equal(result?.snapshots[0]?.stocks[0]?.ticker, "TSLA");
+    assert.equal(result?.snapshots[0]?.stocks[0]?.buzzScore, 71.2);
+    assert.match(result?.summary || "", /reddit: TSLA \(Tesla, Inc\.\): sentiment=0.31, buzz=71.2, mentions=140, trend=rising/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) {
+      delete process.env.ADANOS_API_KEY;
+    } else {
+      process.env.ADANOS_API_KEY = originalApiKey;
+    }
+  }
 });

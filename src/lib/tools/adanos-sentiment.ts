@@ -34,6 +34,18 @@ export interface AdanosSourceSnapshot {
   stocks: AdanosSentimentRow[];
 }
 
+export interface AdanosSentimentToolResult {
+  success: boolean;
+  enabled: boolean;
+  tickers: string[];
+  source: AdanosSource | "all";
+  days: number;
+  snapshots: AdanosSourceSnapshot[];
+  summary: string;
+  docsUrl: string;
+  error?: string;
+}
+
 const adanosInputSchema = z.object({
   tickers: z.array(z.string()).min(1).max(5).describe("1-5 likely stock tickers relevant to the market, e.g. ['TSLA'] or ['AAPL','GOOGL']."),
   source: z.enum([...ALL_SOURCES, "all"]).default("all").describe("Sentiment source to query. Use 'all' for a cross-platform snapshot."),
@@ -221,53 +233,61 @@ export const adanosMarketSentimentTool = tool({
   description:
     "Optional cross-platform stock sentiment snapshots from Adanos. Use only when the market clearly concerns a public company, stock, earnings, or ticker-linked catalyst. Treat the output as directional context to guide further research, not as standalone proof.",
   inputSchema: adanosInputSchema,
-  execute: async ({ tickers, source, days }) => {
-    const normalizedTickers = normalizeTickers(tickers);
-    const apiKey = getAdanosApiKey();
-    const lookbackDays = days ?? getDefaultDays();
+  execute: async ({ tickers, source, days }) => executeAdanosMarketSentiment({ tickers, source, days }),
+});
 
-    if (normalizedTickers.length === 0) {
-      return {
-        success: false,
-        enabled: false,
-        tickers: [],
-        source,
-        days: lookbackDays,
-        snapshots: [] as AdanosSourceSnapshot[],
-        summary: "No valid stock tickers were provided.",
-        error: "No valid stock tickers were provided.",
-        docsUrl: ADANOS_DOCS_URL,
-      };
-    }
+export async function executeAdanosMarketSentiment({
+  tickers,
+  source,
+  days,
+}: z.infer<typeof adanosInputSchema>): Promise<AdanosSentimentToolResult> {
+  const normalizedTickers = normalizeTickers(tickers);
+  const apiKey = getAdanosApiKey();
+  const lookbackDays = days ?? getDefaultDays();
 
-    if (!apiKey) {
-      return {
-        success: false,
-        enabled: false,
-        tickers: normalizedTickers,
-        source,
-        days: lookbackDays,
-        snapshots: [] as AdanosSourceSnapshot[],
-        summary: "Adanos sentiment enrichment is disabled because ADANOS_API_KEY is not configured.",
-        error: "ADANOS_API_KEY is not configured.",
-        docsUrl: ADANOS_DOCS_URL,
-      };
-    }
-
-    const sources = source === "all" ? [...ALL_SOURCES] : [source];
-    const snapshots = await Promise.all(sources.map((entry) => fetchSourceSnapshot(entry, normalizedTickers, lookbackDays, apiKey)));
-    const success = snapshots.some((snapshot) => snapshot.success && snapshot.stocks.length > 0);
-
+  if (normalizedTickers.length === 0) {
     return {
-      success,
-      enabled: true,
+      success: false,
+      enabled: false,
+      tickers: [],
+      source,
+      days: lookbackDays,
+      snapshots: [],
+      summary: "No valid stock tickers were provided.",
+      error: "No valid stock tickers were provided.",
+      docsUrl: ADANOS_DOCS_URL,
+    };
+  }
+
+  if (!apiKey) {
+    return {
+      success: false,
+      enabled: false,
       tickers: normalizedTickers,
       source,
       days: lookbackDays,
-      snapshots,
-      summary: buildAdanosSummary(snapshots),
+      snapshots: [],
+      summary: "Adanos sentiment enrichment is disabled because ADANOS_API_KEY is not configured.",
+      error: "ADANOS_API_KEY is not configured.",
       docsUrl: ADANOS_DOCS_URL,
-      error: success ? undefined : "No Adanos sentiment rows were returned for the requested tickers.",
     };
-  },
-});
+  }
+
+  const sources = source === "all" ? [...ALL_SOURCES] : [source];
+  const snapshots = await Promise.all(
+    sources.map((entry) => fetchSourceSnapshot(entry, normalizedTickers, lookbackDays, apiKey))
+  );
+  const success = snapshots.some((snapshot) => snapshot.success && snapshot.stocks.length > 0);
+
+  return {
+    success,
+    enabled: true,
+    tickers: normalizedTickers,
+    source,
+    days: lookbackDays,
+    snapshots,
+    summary: buildAdanosSummary(snapshots),
+    docsUrl: ADANOS_DOCS_URL,
+    error: success ? undefined : "No Adanos sentiment rows were returned for the requested tickers.",
+  };
+}

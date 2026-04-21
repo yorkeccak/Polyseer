@@ -79,6 +79,7 @@ const result = await generateText({
 VALYU_API_KEY=your_valyu_api_key
 OPENAI_API_KEY=your_openai_api_key
 ADANOS_API_KEY=optional_for_stock_sentiment
+ADANOS_API_TIMEOUT_MS=10000
 ```
 
 ### Search Parameters
