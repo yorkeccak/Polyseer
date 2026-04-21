@@ -6,7 +6,7 @@
 
 ## Quick Start (Self-Hosted)
 
-The easiest way to run Polyseer is in self-hosted mode with just 3 environment variables:
+The easiest way to run Polyseer is in self-hosted mode with just 3 required environment variables:
 
 ```bash
 git clone https://github.com/yorkeccak/polyseer.git
@@ -17,6 +17,7 @@ npm install
 # NEXT_PUBLIC_APP_MODE=self-hosted
 # VALYU_API_KEY=valyu_xxx        # Get from platform.valyu.ai
 # OPENAI_API_KEY=sk-xxx          # Get from platform.openai.com
+# ADANOS_API_KEY=optional        # Optional: https://api.adanos.org/docs/
 
 npm run dev
 ```
@@ -27,6 +28,7 @@ Self-hosted mode features:
 - No authentication required
 - Local SQLite database (automatically created)
 - Unlimited queries using your API keys
+- Optional Adanos stock sentiment enrichment for equity-linked markets
 - Perfect for personal use and development
 
 ## What is Polyseer?
@@ -45,6 +47,25 @@ The system uses multiple AI agents to research both sides of a question, then ag
 - Real-time data, not stale information
 
 Built for developers, researchers and anyone who wants rigorous analysis instead of speculation.
+
+### Optional Adanos Market Sentiment Integration
+
+Polyseer can optionally enrich stock-linked prediction markets with Adanos Market Sentiment snapshots across:
+
+- Reddit
+- X
+- News
+- Polymarket
+
+This integration is disabled by default. If `ADANOS_API_KEY` is not configured, Polyseer behaves exactly as before.
+
+When enabled, the research agents may call Adanos only for markets that clearly concern a public company, stock, earnings event, or ticker-linked catalyst. The signal is used as directional context to improve follow-up research, not as standalone proof.
+
+```bash
+ADANOS_API_KEY=your_adanos_key
+ADANOS_API_BASE_URL=https://api.adanos.org
+ADANOS_SENTIMENT_DEFAULT_DAYS=7
+```
 
 ---
 

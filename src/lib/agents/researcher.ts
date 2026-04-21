@@ -3,6 +3,7 @@ import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { Evidence } from '../forecasting/types';
 import { valyuDeepSearchTool, valyuWebSearchTool } from '../tools/valyu_search';
+import { adanosMarketSentimentTool } from '../tools/adanos-sentiment';
 
 // Model helpers - using OpenAI directly (costs handled via Valyu OAuth proxy for search)
 const getModelSmall = () => openai('gpt-4o-mini');
@@ -238,6 +239,13 @@ Research Process:
 2. Evaluate each piece of evidence for quality and reliability
 3. Return your findings as structured JSON matching the required schema
 
+OPTIONAL STOCK SENTIMENT TOOL:
+- If and only if the market clearly concerns a public company, stock, earnings, or ticker-linked catalyst, call \`adanosMarketSentiment\`.
+- Use it to identify cross-platform retail/news/prediction-market sentiment on the relevant ticker(s).
+- Treat it as directional context and catalyst discovery, not as standalone proof.
+- Use it to sharpen follow-up Valyu searches when current stock-specific crowd positioning matters.
+- Skip it entirely for non-equity markets or when the relevant ticker is unclear.
+
 QUERY CONSTRUCTION RULES (Initial Cycle):
 - DO NOT prefix queries with outlet names (e.g., do not start queries with "Reuters ", "Bloomberg ", "WSJ ").
 - DO NOT use site: filters.
@@ -316,6 +324,7 @@ async function conductResearch(
       tools: {
         valyuDeepSearch: valyuDeepSearchTool,
         valyuWebSearch: valyuWebSearchTool,
+        adanosMarketSentiment: adanosMarketSentimentTool,
       }
     });
 
@@ -485,6 +494,8 @@ Adjacency scope examples (general, not music-specific):
 - Media/awards/PR cycles, documentaries, viral social trends
 - Competitor cycles (releases, partnerships, fundraising, leadership changes)
 
+If the market is clearly stock-linked, you may also call \`adanosMarketSentiment\` to gather optional cross-platform ticker sentiment and use it to steer follow-up searches.
+
 For each seed, use tools to find recent (2024–2025) signals. For each high-quality item, classify a pathway label (e.g., platform-policy, regulatory, award/media, viral, release/tour, macro) and estimate connectionStrength [0-1] describing how strongly this signal should affect the outcome.
 
 Return 3-6 total items across seeds.`;
@@ -496,6 +507,7 @@ Return 3-6 total items across seeds.`;
       tools: {
         valyuDeepSearch: valyuDeepSearchTool,
         valyuWebSearch: valyuWebSearchTool,
+        adanosMarketSentiment: adanosMarketSentimentTool,
       }
     });
 
@@ -592,6 +604,8 @@ QUERY CONSTRUCTION RULES (Targeted):
 - Consider adding the current year "2025" to queries when freshness is critical.
 - Use natural language with precise entities/contexts from the rationale.
 
+If this gap is about a public company or ticker-linked catalyst, you may call \`adanosMarketSentiment\` first to understand current cross-platform stock sentiment before searching for sourceable evidence.
+
 After searching, return 1-3 high-quality evidence items that directly address the search rationale.`;
 
     // Step 1: Use tools to gather information
@@ -602,6 +616,7 @@ After searching, return 1-3 high-quality evidence items that directly address th
       tools: {
         valyuDeepSearch: valyuDeepSearchTool,
         valyuWebSearch: valyuWebSearchTool,
+        adanosMarketSentiment: adanosMarketSentimentTool,
       }
     });
 

@@ -107,9 +107,20 @@ async function callValyuApi(
       // Call Valyu SDK directly based on path
       if (path === '/v1/deepsearch') {
         const result = await valyu.search(body.query, body);
+        const normalizedResults = (result.results || []).map((entry) => ({
+          ...entry,
+          content:
+            typeof entry.content === 'string'
+              ? entry.content
+              : JSON.stringify(entry.content ?? ''),
+          relevance_score:
+            typeof entry.relevance_score === 'number' && Number.isFinite(entry.relevance_score)
+              ? entry.relevance_score
+              : 0,
+        }));
         return {
           success: true,
-          results: result.results || [],
+          results: normalizedResults,
           tx_id: result.tx_id || undefined,
           total_deduction_dollars: result.total_deduction_dollars,
         };
