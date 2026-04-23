@@ -7,6 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "test:unit": "tsx --test src/**/*.test.ts",
     "test:forecast": "tsx scripts/test-forecast.ts",
     "demo:simple": "tsx scripts/demo-simple.ts",
     "debug:drivers": "tsx scripts/debug-drivers.ts",

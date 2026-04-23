@@ -25,6 +25,13 @@ This directory contains the complete implementation of Valyu search tools for th
 - **Input Schema**: `{ query: string }`
 - **Use Cases**: Current events, news, general web content
 
+### 3. `adanosMarketSentimentTool`
+- **Purpose**: Optional cross-platform stock sentiment snapshot for equity-linked markets
+- **Input Schema**: `{ tickers: string[], source?: enum, days?: number }`
+- **Sources**: `reddit`, `x`, `news`, `polymarket`, or `all`
+- **Use Cases**: Stock-linked prediction markets, earnings catalysts, public-company sentiment context
+- **Behavior without key**: Fail-open. Returns `enabled=false` if `ADANOS_API_KEY` is not configured.
+
 ## ✨ Key Features
 
 ### Type Safety
@@ -71,6 +78,8 @@ const result = await generateText({
 ```bash
 VALYU_API_KEY=your_valyu_api_key
 OPENAI_API_KEY=your_openai_api_key
+ADANOS_API_KEY=optional_for_stock_sentiment
+ADANOS_API_TIMEOUT_MS=10000
 ```
 
 ### Search Parameters
