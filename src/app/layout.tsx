@@ -160,40 +160,15 @@ export default function RootLayout({
             <Header />
             <main className="relative min-h-screen">{children}</main>
             
-            {/* Fixed Footer Elements */}
-            <div className="fixed bottom-0 right-4 z-40 pointer-events-none">
-              <div className="pb-4 flex items-center gap-3">
-                {/* Terms of Service Link */}
-                <div className="relative pointer-events-auto">
-                  <div 
-                    className="absolute -inset-4 rounded-full blur-2xl"
-                    style={{
-                      background: 'radial-gradient(circle, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)',
-                    }}
-                  ></div>
-                  <div className="relative bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                    <a 
-                      href="/terms" 
-                      className="text-sm text-white/80 hover:text-white/100 font-medium transition-colors underline underline-offset-2"
-                    >
-                      Terms
-                    </a>
-                  </div>
-                </div>
-
-                {/* Not Financial Advice - Far Right */}
-                <div className="relative pointer-events-auto">
-                  {/* Background blur effect */}
-                  <div 
-                    className="absolute -inset-4 rounded-full blur-2xl"
-                    style={{
-                      background: 'radial-gradient(circle, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)',
-                    }}
-                  ></div>
-                  <div className="relative bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                    <span className="text-sm text-white/90 font-medium">Not financial advice</span>
-                  </div>
-                </div>
+            <div className="pointer-events-none fixed bottom-4 right-4 z-40">
+              <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3.5 py-1.5 text-xs font-medium text-white/80 backdrop-blur-md">
+                <a href="/terms" className="transition-colors hover:text-white">
+                  Terms
+                </a>
+                <span className="text-white/30" aria-hidden="true">
+                  ·
+                </span>
+                <span>Not financial advice</span>
               </div>
             </div>
           </AuthInitializer>

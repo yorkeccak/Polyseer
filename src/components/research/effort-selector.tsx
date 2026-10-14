@@ -47,11 +47,11 @@ export function EffortSelector({ value, onChange, disabled = false, note }: Effo
         disabled={disabled}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex items-center gap-1.5 rounded-full border border-white/30 bg-white/20 px-3 py-1.5 text-sm font-medium text-white/80 backdrop-blur-sm transition-colors hover:bg-white/30 hover:text-white disabled:opacity-60"
+        className="flex items-center gap-1.5 rounded-full border border-white/15 bg-black/25 px-3 py-1.5 text-sm font-medium text-white/85 backdrop-blur-md transition-colors hover:bg-black/40 hover:text-white disabled:opacity-60"
       >
         <SlidersHorizontal className="size-3.5" aria-hidden="true" />
         <span>
-          {selected.label} <span className="text-white/60">· {selected.estimate.replace("About ", "~")}</span>
+          {selected.label} <span className="text-white/55">· {selected.estimate.replace("About ", "~")}</span>
         </span>
         <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} aria-hidden="true" />
       </button>

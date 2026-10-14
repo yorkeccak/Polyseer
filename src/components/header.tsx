@@ -97,7 +97,7 @@ export default function Header() {
                   alt='Polyseer'
                   width={200}
                   height={80}
-                  className='h-24 md:h-24 w-auto drop-shadow-md'
+                  className={`h-24 w-auto drop-shadow-md ${isAnalysisPage ? 'brightness-0 invert' : 'dark:brightness-0 dark:invert'}`}
                   priority
                 />
               </Link>

@@ -107,9 +107,16 @@ export function MarketSearch({ value, onChange, onPick, action, disabled, invali
 
   return (
     <div className="relative">
-      <div className="flex gap-2">
+      <div
+        className={cn(
+          "flex items-center gap-1.5 rounded-2xl bg-white/95 p-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.45)] ring-1 backdrop-blur-sm transition-[box-shadow,background-color]",
+          "focus-within:bg-white focus-within:ring-4",
+          invalid ? "animate-shake ring-red-500 focus-within:ring-red-500/60" : "ring-black/5 focus-within:ring-white/40",
+          disabled && "opacity-80"
+        )}
+      >
         <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-neutral-500">
+          <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-neutral-400">
             {platform ? <PlatformLogo platform={platform} className="size-5" /> : <Search className="size-5" />}
           </span>
           <input
@@ -124,7 +131,7 @@ export function MarketSearch({ value, onChange, onPick, action, disabled, invali
             aria-activedescendant={showList && highlighted >= 0 ? `${listId}-${highlighted}` : undefined}
             aria-invalid={invalid}
             aria-label="Search markets or paste a Polymarket or Kalshi link"
-            placeholder="Search markets or paste a Polymarket / Kalshi link"
+            placeholder="Search markets or paste a link"
             value={value}
             disabled={disabled}
             onChange={(e) => {
@@ -136,11 +143,7 @@ export function MarketSearch({ value, onChange, onPick, action, disabled, invali
             onClick={() => setOpen(true)}
             onBlur={() => setOpen(false)}
             onKeyDown={handleKeyDown}
-            className={cn(
-              "h-12 md:h-14 w-full rounded-md border bg-white/95 pl-12 pr-4 text-base text-neutral-900 shadow-xs outline-none backdrop-blur-sm transition-[color,box-shadow,background-color]",
-              "placeholder:text-neutral-500 focus:bg-white focus-visible:ring-[3px] focus-visible:ring-white/40 disabled:opacity-60",
-              invalid ? "border-red-500 animate-shake" : "border-white/20"
-            )}
+            className="h-11 w-full bg-transparent pl-10 pr-2 text-base text-neutral-900 outline-none placeholder:text-neutral-500 md:h-12"
           />
         </div>
         {action}
@@ -148,7 +151,7 @@ export function MarketSearch({ value, onChange, onPick, action, disabled, invali
 
       {showList && (
         <div
-          className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-black/5 bg-white text-left text-neutral-900 shadow-2xl"
+          className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-black/5 bg-white text-left text-neutral-900 shadow-2xl"
           // Keep focus in the input so a click registers before blur closes the list.
           onMouseDown={(e) => e.preventDefault()}
         >
@@ -169,7 +172,7 @@ export function MarketSearch({ value, onChange, onPick, action, disabled, invali
             {(searching || (trendingLoading && !isSearch)) && <Loader2 className="size-3.5 animate-spin" />}
           </div>
 
-          <ul id={listId} role="listbox" className="max-h-[min(420px,55vh)] overflow-y-auto pb-2">
+          <ul id={listId} role="listbox" className="max-h-[min(380px,45vh)] overflow-y-auto pb-1.5">
             {results.map((market, i) => {
               const meta = [leaderText(market), `${formatVolume(market)} vol 24h`, formatTimeLeft(market.endDate)]
                 .filter(Boolean)
@@ -183,7 +186,7 @@ export function MarketSearch({ value, onChange, onPick, action, disabled, invali
                   onMouseEnter={() => setActive(i)}
                   onClick={() => pick(market)}
                   className={cn(
-                    "group flex cursor-pointer items-center gap-3 px-4 py-2.5",
+                    "group mx-1.5 flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2.5",
                     i === highlighted ? "bg-neutral-100" : "hover:bg-neutral-50"
                   )}
                 >
