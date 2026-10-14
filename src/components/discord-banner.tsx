@@ -40,7 +40,8 @@ export function DiscordBanner() {
             className="flex items-center gap-1.5 text-xs font-medium hover:underline"
           >
             <DiscordIcon className="h-3.5 w-3.5" />
-            Join the Valyu Discord
+            <span className="sm:hidden">Discord</span>
+            <span className="hidden sm:inline">Join the Valyu Discord</span>
           </a>
           <button
             onClick={dismissDiscord}

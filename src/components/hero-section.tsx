@@ -26,6 +26,8 @@ interface HeroSectionProps {
 
 const DRAFT_KEY = "polyseer_research_draft";
 const EFFORT_KEY = "polyseer_research_effort";
+const PILL =
+  "flex items-center gap-1.5 rounded-full border border-white/15 bg-black/25 px-3 py-1.5 text-sm font-medium text-white/85 backdrop-blur-md transition-colors hover:bg-black/40 hover:text-white";
 
 function readDraft(): { url: string; effort: ResearchEffort } | null {
   try {
@@ -159,20 +161,20 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
   const emailNote = !isSelfHostedApp && user?.email ? user.email : null;
 
   return (
-    <section className="relative z-30 flex-shrink-0 flex items-center justify-center px-4 pt-24 md:pt-32 md:pb-6">
+    <section className="relative z-30 flex-shrink-0 flex items-center justify-center px-4 pt-24 md:pt-32 short:md:pt-20">
       <div className="container max-w-5xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.5, ease: [0.215, 0.61, 0.355, 1] }}
-          className="text-center space-y-8"
+          className="text-center space-y-8 short:md:space-y-6"
         >
-          <div className="space-y-6">
+          <div className="space-y-6 short:md:space-y-5">
             <motion.h1
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, delay: 0.7, ease: [0.215, 0.61, 0.355, 1] }}
-              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight font-[family-name:var(--font-space)]"
+              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl short:lg:text-7xl font-bold tracking-tight font-[family-name:var(--font-space)]"
             >
               <span className="text-white drop-shadow-lg">See the future.</span>
             </motion.h1>
@@ -183,8 +185,8 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
               transition={{ duration: 1, delay: 0.9, ease: "easeOut" }}
               className="flex justify-center"
             >
-              <div className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-2xl border border-white/30 max-w-2xl">
-                <p className="text-lg md:text-xl text-white/90 leading-relaxed text-center">
+              <div className="max-w-2xl rounded-2xl border border-white/15 bg-black/25 px-5 py-2.5 backdrop-blur-md">
+                <p className="text-center text-base leading-relaxed text-white md:text-lg">
                   Pick any Polymarket or Kalshi market.{" "}
                   <br className="hidden sm:block" />
                   Polyseer researches it and shows where the price is wrong.
@@ -213,7 +215,7 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
                     size="lg"
                     disabled={submitting}
                     aria-label="Start research"
-                    className="h-12 md:h-14 px-4 md:px-6 bg-black text-white hover:bg-black/90 font-medium"
+                    className="h-11 md:h-12 rounded-xl px-4 md:px-5 bg-neutral-950 text-white hover:bg-neutral-800 font-medium"
                   >
                     {submitting ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -230,7 +232,7 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
                 <motion.p
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="absolute -bottom-6 left-0 text-sm text-red-300 drop-shadow-md"
+                  className="absolute -bottom-7 left-2 text-sm font-medium text-red-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
                   role="alert"
                 >
                   {error}
@@ -243,25 +245,23 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 1.3, ease: "easeOut" }}
-              className="relative z-20 flex flex-wrap justify-center gap-2 mt-4"
+              className="relative z-20 flex flex-wrap justify-center gap-2 pt-2"
             >
-              <div className="relative flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/30">
-                <span className="text-sm text-white/80 font-medium">Powered by</span>
-                <a
-                  href="https://valyu.ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center hover:scale-105 transition-transform pt-0.5"
-                >
-                  <Image
-                    src="/valyu.svg"
-                    alt="Valyu"
-                    width={80}
-                    height={80}
-                    className="h-4 w-auto opacity-80 hover:opacity-100 transition-opacity"
-                  />
-                </a>
-              </div>
+              <a
+                href="https://valyu.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${PILL} group`}
+              >
+                <span>Powered by</span>
+                <Image
+                  src="/valyu.svg"
+                  alt="Valyu"
+                  width={80}
+                  height={80}
+                  className="mt-0.5 h-3.5 w-auto opacity-80 brightness-0 invert transition-opacity group-hover:opacity-100"
+                />
+              </a>
               <EffortSelector
                 value={effort}
                 onChange={changeEffort}
@@ -278,7 +278,7 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
               <button
                 type="button"
                 onClick={onShowHowItWorks}
-                className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/30 text-sm text-white/80 font-medium hover:bg-white/30 transition-colors"
+                className={PILL}
               >
                 How it works
               </button>
