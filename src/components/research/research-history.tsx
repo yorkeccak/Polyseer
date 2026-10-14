@@ -71,12 +71,7 @@ function formatDate(value?: string): string {
 }
 
 function PlatformMark({ platform, appearance }: { platform?: "polymarket" | "kalshi"; appearance: Appearance }) {
-  const src =
-    platform === "kalshi"
-      ? "https://kalshi.com/logo192.png"
-      : platform === "polymarket"
-        ? "https://www.google.com/s2/favicons?domain=polymarket.com&sz=32"
-        : null;
+  const src = platform ? `/logos/${platform}.png` : null;
   return (
     <span
       className={cn(

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import HeroSection from "@/components/hero-section";
-import HighestROI from "@/components/highest-roi";
+import TrendingMarkets from "@/components/trending-markets";
 import HowItWorksModal from "@/components/how-it-works-modal";
 import LoadingScreen from "@/components/loading-screen";
 import { useAuthStore } from "@/lib/stores/use-auth-store";
@@ -66,9 +66,12 @@ export default function Home() {
           submitSignal={submitSignal}
         />
 
-        <HighestROI
-          onAnalyze={(url) => {
-            setMarketUrl(url);
+        <TrendingMarkets
+          onAnalyze={(market) => {
+            import("@vercel/analytics").then(({ track }) => {
+              track("Market Picked", { platform: market.platform, source: "carousel" });
+            });
+            setMarketUrl(market.url);
             setSubmitSignal((value) => value + 1);
           }}
         />

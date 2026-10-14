@@ -6,7 +6,7 @@
 import { createClient as createSupabaseClient } from "@/utils/supabase/server";
 import { getLocalDb, DEV_USER_ID } from "./local-db/client";
 import { getDevUser, isSelfHostedMode } from "./local-db/local-auth";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import * as schema from "./local-db/schema";
 
 // ============================================================================
@@ -110,106 +110,6 @@ export async function upsertUser(userData: {
   const supabase = await createSupabaseClient();
   const { error } = await supabase.from("users").upsert(userData);
   return { error };
-}
-
-// ============================================================================
-// FEATURED MARKETS FUNCTIONS
-// ============================================================================
-
-export async function getFeaturedMarkets() {
-  if (isSelfHostedMode()) {
-    const db = getLocalDb();
-    const markets = await db.query.featuredMarkets.findMany({
-      where: eq(schema.featuredMarkets.isActive, true),
-      orderBy: [desc(schema.featuredMarkets.volume)],
-      limit: 4,
-    });
-
-    // Transform to match Supabase format
-    return {
-      data: markets.map((m) => ({
-        id: m.id,
-        slug: m.slug,
-        question: m.question,
-        category: m.category,
-        polymarket_url: m.polymarketUrl,
-        market_url: m.marketUrl,
-        platform: m.platform,
-        volume: m.volume,
-        end_date: m.endDate?.toISOString(),
-        current_odds: m.currentOdds ? JSON.parse(m.currentOdds) : null,
-        sort_order: m.sortOrder,
-        is_active: m.isActive,
-      })),
-      error: null,
-    };
-  }
-
-  const supabase = await createSupabaseClient();
-  const { data, error } = await supabase
-    .from("featured_markets")
-    .select("*")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true })
-    .order("volume", { ascending: false })
-    .limit(4);
-
-  return { data, error };
-}
-
-export async function updateFeaturedMarkets(
-  markets: Array<{
-    slug: string;
-    question: string;
-    polymarket_url: string;
-    market_url: string;
-    volume: number;
-    end_date: string;
-    current_odds: any;
-    sort_order: number;
-    platform: string;
-    is_active: boolean;
-  }>
-) {
-  if (isSelfHostedMode()) {
-    const db = getLocalDb();
-
-    // Delete all existing featured markets
-    await db.delete(schema.featuredMarkets);
-
-    // Insert new markets
-    if (markets.length > 0) {
-      await db.insert(schema.featuredMarkets).values(
-        markets.map((m) => ({
-          slug: m.slug,
-          question: m.question,
-          polymarketUrl: m.polymarket_url,
-          marketUrl: m.market_url,
-          volume: m.volume,
-          endDate: new Date(m.end_date),
-          currentOdds: JSON.stringify(m.current_odds),
-          sortOrder: m.sort_order,
-          platform: m.platform,
-          isActive: m.is_active,
-        }))
-      );
-    }
-
-    return { error: null };
-  }
-
-  const supabase = await createSupabaseClient();
-
-  // Delete all existing
-  await supabase.from("featured_markets").delete().neq("id", 0);
-
-  // Insert new
-  if (markets.length > 0) {
-    const { error } = await supabase.from("featured_markets").insert(markets);
-    return { error };
-  }
-
-  return { error: null };
 }
 
 // ============================================================================

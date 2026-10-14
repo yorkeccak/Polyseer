@@ -98,7 +98,7 @@ Every forecast link is stable: reopen it later to see progress or the finished r
 | Billing | Your `VALYU_API_KEY` | Each user's Valyu organisation credits, via the platform proxy |
 | History | Tasks on your API key | Tasks on the user's organisation |
 | Completion email | `DEEPRESEARCH_ALERT_EMAIL` | The signed-in user's email |
-| Database | Local SQLite (featured markets) | Your own Supabase (users, featured markets) |
+| Database | Local SQLite | Your own Supabase (users) |
 
 ### Key files
 
@@ -111,6 +111,7 @@ Every forecast link is stable: reopen it later to see progress or the finished r
 | `src/lib/research/service.ts` | Create, status, list, cancel, deliverable lookup |
 | `src/lib/valyu/client.ts` | Server-side Valyu client: API key or OAuth proxy |
 | `src/lib/tools/` | Polymarket and Kalshi market fetchers and URL parsing |
+| `src/lib/markets/discovery.ts` | Live trending markets and market search for the home page |
 | `src/app/api/research/` | API routes |
 | `src/components/research/` | Effort selector, progress, activity feed, verdict, details, downloads, history |
 
@@ -122,7 +123,7 @@ Every forecast link is stable: reopen it later to see progress or the finished r
 - **Tailwind CSS 4**, Radix UI, Framer Motion
 - **Valyu DeepResearch** for research, structured output, deliverables, and completion emails
 - **Polymarket and Kalshi APIs** for live market data
-- **SQLite (self-hosted) or Supabase (Valyu mode)** for featured markets and users
+- **SQLite (self-hosted) or Supabase (Valyu mode)** for users
 - **Zustand** for auth state, **TypeScript** throughout
 
 ---

@@ -169,25 +169,31 @@ async function getOrderBook(marketTicker: string): Promise<AnyObj> {
 }
 
 /**
- * Get historical price data (candlesticks)
- * Note: Kalshi's history endpoint structure may vary
+ * Get daily closing prices for the last 90 days from the candlesticks endpoint
  */
-async function getPriceHistory(marketTicker: string): Promise<{ t: number; p: number }[]> {
+async function getPriceHistory(market: AnyObj): Promise<{ t: number; p: number }[]> {
+  const marketTicker = market.ticker;
+  const seriesTicker = market.series_ticker || String(market.event_ticker || marketTicker).split('-')[0];
   try {
-    // Kalshi uses candlestick data at /markets/{ticker}/history
-    const url = `${KALSHI_API_BASE}/markets/${encodeURIComponent(marketTicker)}/history`;
-    const response = await http<{ history: AnyObj[] }>(url);
+    const end = Math.floor(Date.now() / 1000);
+    const params = new URLSearchParams({
+      start_ts: String(end - 90 * 86400),
+      end_ts: String(end),
+      period_interval: "1440",
+    });
+    const url = `${KALSHI_API_BASE}/series/${encodeURIComponent(seriesTicker)}/markets/${encodeURIComponent(marketTicker)}/candlesticks?${params}`;
+    const response = await http<{ candlesticks: AnyObj[] }>(url);
 
-    if (!response?.history || !Array.isArray(response.history)) {
+    if (!Array.isArray(response?.candlesticks)) {
       return [];
     }
 
-    // Convert candlestick data to price points
-    // Kalshi returns: { open_time, close_time, open, high, low, close, volume }
-    return response.history.map((candle: AnyObj) => ({
-      t: new Date(candle.close_time || candle.open_time).getTime(),
-      p: candle.close || candle.open || 0
-    }));
+    return response.candlesticks
+      .map((candle: AnyObj) => ({
+        t: Number(candle.end_period_ts) * 1000,
+        p: dollars(candle.price, "close") ?? dollars(candle.yes_bid, "close") ?? 0,
+      }))
+      .filter((point) => point.p > 0);
   } catch (error) {
     console.warn(`Failed to fetch price history for ${marketTicker}:`, error);
     return [];
@@ -200,8 +206,27 @@ function extractQuestion(market: AnyObj): string {
   return market.title || market.question || market.subtitle || "";
 }
 
+/** Kalshi reports prices as dollar strings (`yes_bid_dollars`); older responses used integer cents (`yes_bid`). */
+function dollars(obj: AnyObj | undefined, field: string): number | null {
+  if (!obj) return null;
+  const value = obj[`${field}_dollars`] ?? (typeof obj[field] === "number" ? obj[field] / 100 : undefined);
+  const n = typeof value === "string" ? parseFloat(value) : value;
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+/** Counts are fixed-point strings (`volume_fp`) in current responses. */
+function count(market: AnyObj, field: string): number {
+  const n = parseFloat(market[`${field}_fp`] ?? market[field] ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function isOpen(market: AnyObj): boolean {
+  return market.status === 'active' || market.status === 'open';
+}
+
 function extractCloseTime(market: AnyObj): string | number | undefined {
-  return market.close_time || market.expected_expiration_time || market.expiration_time;
+  // close_time can sit years past the real outcome date; expected expiry is when it resolves.
+  return market.expected_expiration_time || market.close_time || market.expiration_time;
 }
 
 function extractResolutionSource(market: AnyObj, series?: AnyObj): string | undefined {
@@ -213,13 +238,18 @@ function extractResolutionSource(market: AnyObj, series?: AnyObj): string | unde
 }
 
 function extractVolume(market: AnyObj): number | undefined {
-  return market.volume || market.volume_24h;
+  return count(market, 'volume') || count(market, 'volume_24h') || undefined;
 }
 
 function extractLiquidity(market: AnyObj): number | undefined {
-  // Kalshi uses liquidity in cents, convert to dollars
-  const liquidityCents = market.liquidity || 0;
-  return liquidityCents > 0 ? liquidityCents / 100 : undefined;
+  const liquidity = dollars(market, 'liquidity') || 0;
+  return liquidity > 0 ? liquidity : undefined;
+}
+
+function yesMid(market: AnyObj): number | null {
+  const bid = dollars(market, 'yes_bid') || 0;
+  const ask = dollars(market, 'yes_ask') || 0;
+  return bid > 0 && ask > 0 ? (bid + ask) / 2 : null;
 }
 
 /**
@@ -253,14 +283,12 @@ async function buildMarketSummary(market: AnyObj, series?: AnyObj): Promise<Mark
  * Build current market state with bid/ask/mid prices
  */
 function buildMarketStateNow(market: AnyObj): MarketStateNowEntry[] {
-  const ticker = market.ticker;
   const tokenMap = buildTokenMap(market);
 
-  // Kalshi prices are in cents (0-100)
-  const yesBid = (market.yes_bid || 0) / 100;
-  const yesAsk = (market.yes_ask || 0) / 100;
-  const noBid = (market.no_bid || 0) / 100;
-  const noAsk = (market.no_ask || 0) / 100;
+  const yesBid = dollars(market, 'yes_bid') || 0;
+  const yesAsk = dollars(market, 'yes_ask') || 0;
+  const noBid = dollars(market, 'no_bid') || 0;
+  const noAsk = dollars(market, 'no_ask') || 0;
 
   const yesEntry: MarketStateNowEntry = {
     token_id: tokenMap["Yes"],
@@ -330,10 +358,9 @@ async function buildOrderBooks(market: AnyObj, withBooks: boolean): Promise<AnyO
  * Build price history for both Yes and No outcomes
  */
 async function buildPriceHistory(market: AnyObj): Promise<LLMPayload["history"]> {
-  const ticker = market.ticker;
   const tokenMap = buildTokenMap(market);
 
-  const yesHistory = await getPriceHistory(ticker);
+  const yesHistory = await getPriceHistory(market);
 
   // For No, invert the prices since Yes + No = 1
   const noHistory = yesHistory.map(point => ({
@@ -378,7 +405,7 @@ export async function buildLLMPayloadFromKalshiTicker(
         isEventLevel = true;
 
         // Find the most active market from the event
-        const activeMarkets = eventData.markets.filter((m: AnyObj) => m.status === 'active');
+        const activeMarkets = eventData.markets.filter(isOpen);
         if (activeMarkets.length === 0) {
           throw new Error(
             `Event "${ticker}" found but all ${eventData.markets.length} markets are closed or settled. This event may have concluded.`
@@ -386,11 +413,9 @@ export async function buildLLMPayloadFromKalshiTicker(
         }
 
         // Use the market with highest volume as the primary
-        market = activeMarkets.reduce((best: AnyObj, current: AnyObj) => {
-          const bestVol = best.volume || 0;
-          const currentVol = current.volume || 0;
-          return currentVol > bestVol ? current : best;
-        });
+        market = activeMarkets.reduce((best: AnyObj, current: AnyObj) =>
+          count(current, 'volume') > count(best, 'volume') ? current : best
+        );
 
         console.log(`📊 Using most active market: ${market.ticker} (${market.yes_sub_title || 'Unknown'})`);
       } else {
@@ -429,7 +454,7 @@ export async function buildLLMPayloadFromKalshiTicker(
 
       if (eventMarkets.length > 2) {
         // Multi-candidate event
-        const activeMarkets = eventMarkets.filter((m: AnyObj) => m.status === 'open');
+        const activeMarkets = eventMarkets.filter(isOpen);
 
         const topCandidates = activeMarkets
           .map((m: AnyObj) => {
@@ -438,10 +463,7 @@ export async function buildLLMPayloadFromKalshiTicker(
             const question = extractQuestion(m);
             const candidateName = question.replace(/^Will\s+/, '').replace(/\s+win\s+.*$/, '').trim();
 
-            // Calculate implied probability from yes prices
-            const yesBid = (m.yes_bid || 0) / 100;
-            const yesAsk = (m.yes_ask || 0) / 100;
-            const implied_probability = yesBid > 0 && yesAsk > 0 ? (yesBid + yesAsk) / 2 : 0;
+            const implied_probability = yesMid(m) ?? dollars(m, 'last_price') ?? 0;
 
             return {
               name: candidateName,
@@ -449,7 +471,7 @@ export async function buildLLMPayloadFromKalshiTicker(
               implied_probability,
               volume,
               liquidity,
-              active: m.status === 'open',
+              active: isOpen(m),
               market: m
             };
           })

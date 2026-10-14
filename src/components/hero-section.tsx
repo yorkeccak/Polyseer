@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Mail, Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowRight, Loader2, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ZoomTransition from "@/components/zoom-transition";
 import Image from "next/image";
@@ -14,6 +13,8 @@ import { DEFAULT_EFFORT, parseResearchEffort, type ResearchEffort } from "@/lib/
 import { isSelfHostedApp, startResearch } from "@/lib/research/client";
 import { useAuthStore } from "@/lib/stores/use-auth-store";
 import { isValidMarketUrl, detectPlatform } from "@/lib/tools/market-url-parser";
+import { MarketSearch } from "@/components/markets/market-search";
+import type { DiscoveredMarket } from "@/lib/markets/client";
 
 interface HeroSectionProps {
   onShowHowItWorks: () => void;
@@ -79,18 +80,16 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
     setError("");
   };
 
-  const detectedPlatform = url ? detectPlatform(url) : null;
-
   const submit = useCallback(
     async (candidateUrl: string, chosenEffort: ResearchEffort) => {
       setError("");
       const trimmed = candidateUrl.trim();
       if (!trimmed) {
-        setError("Paste a Polymarket or Kalshi market URL");
+        setError("Search for a market or paste a Polymarket or Kalshi link");
         return;
       }
       if (!isValidMarketUrl(trimmed)) {
-        setError("That does not look like a Polymarket or Kalshi market URL");
+        setError("Pick a market from the list, or paste a Polymarket or Kalshi link");
         return;
       }
       if (!isSelfHostedApp && !user) {
@@ -144,6 +143,14 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialized, user]);
 
+  const pickMarket = (market: DiscoveredMarket) => {
+    handleUrlChange(market.url);
+    import("@vercel/analytics").then(({ track }) => {
+      track("Market Picked", { platform: market.platform, source: "search" });
+    });
+    void submit(market.url, effort);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void submit(url, effort);
@@ -152,7 +159,7 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
   const emailNote = !isSelfHostedApp && user?.email ? user.email : null;
 
   return (
-    <section className="relative flex-shrink-0 flex items-center justify-center px-4 pt-24 md:pt-32 md:pb-6">
+    <section className="relative z-30 flex-shrink-0 flex items-center justify-center px-4 pt-24 md:pt-32 md:pb-6">
       <div className="container max-w-5xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -178,9 +185,9 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
             >
               <div className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-2xl border border-white/30 max-w-2xl">
                 <p className="text-lg md:text-xl text-white/90 leading-relaxed text-center">
-                  In hindsight, we all would&apos;ve bought Bitcoin.
+                  Pick any Polymarket or Kalshi market.{" "}
                   <br className="hidden sm:block" />
-                  Seer into the future, so you can retire off the next one.
+                  Polyseer researches it and shows where the price is wrong.
                 </p>
               </div>
             </motion.div>
@@ -193,76 +200,42 @@ export default function HeroSection({ onShowHowItWorks, marketUrl, setMarketUrl,
             onSubmit={handleSubmit}
             className="space-y-4 max-w-2xl mx-auto"
           >
-            <div className="relative flex gap-2 transition-all duration-300">
-              <motion.div
-                className="relative"
-                initial={{ width: "100%" }}
-                animate={{ width: url ? "75%" : "100%" }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-              >
-                <Input
-                  type="url"
-                  placeholder="Paste Polymarket or Kalshi URL... Or click one of the trending markets below 👇"
-                  value={url}
-                  onChange={(e) => handleUrlChange(e.target.value)}
-                  className={`h-12 md:h-14 text-base px-4 md:px-6 bg-white/95 backdrop-blur-sm border-white/20 focus:bg-white focus:border-white/40 placeholder:text-neutral-500 w-full ${
-                    error ? "border-red-500 animate-shake" : ""
-                  }`}
-                  disabled={submitting}
-                  aria-invalid={Boolean(error)}
-                />
-                {error && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="absolute -bottom-6 left-0 text-sm text-red-300 drop-shadow-md"
-                    role="alert"
+            <div className="relative">
+              <MarketSearch
+                value={url}
+                onChange={handleUrlChange}
+                onPick={pickMarket}
+                disabled={submitting}
+                invalid={Boolean(error)}
+                action={
+                  <Button
+                    type="submit"
+                    size="lg"
+                    disabled={submitting}
+                    aria-label="Start research"
+                    className="h-12 md:h-14 px-4 md:px-6 bg-black text-white hover:bg-black/90 font-medium"
                   >
-                    {error}
-                  </motion.p>
-                )}
-              </motion.div>
-
-              <AnimatePresence>
-                {url && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8, width: 0 }}
-                    animate={{ opacity: 1, scale: 1, width: "15%" }}
-                    exit={{ opacity: 0, scale: 0.8, width: 0 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                  >
-                    <Button
-                      type="submit"
-                      size="lg"
-                      disabled={submitting}
-                      aria-label="Start research"
-                      className="h-12 md:h-14 w-full bg-black text-white hover:bg-black/90 transition-all font-medium"
-                    >
-                      {submitting ? (
-                        <span className="flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 animate-pulse" />
-                        </span>
-                      ) : detectedPlatform ? (
-                        <span className="flex items-center gap-2">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={
-                              detectedPlatform === "polymarket"
-                                ? "https://www.google.com/s2/favicons?domain=polymarket.com&sz=32"
-                                : "https://kalshi.com/logo192.png"
-                            }
-                            alt={detectedPlatform}
-                            className="w-5 h-5 md:w-6 md:h-6 rounded-sm"
-                          />
-                          <ArrowRight className="h-4 w-4 md:h-5 md:w-5" />
-                        </span>
-                      ) : (
-                        <ArrowRight className="h-5 w-5 md:h-6 md:w-6" />
-                      )}
-                    </Button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    {submitting ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <>
+                        <span className="hidden sm:inline">Research</span>
+                        <ArrowRight className="h-5 w-5" />
+                      </>
+                    )}
+                  </Button>
+                }
+              />
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="absolute -bottom-6 left-0 text-sm text-red-300 drop-shadow-md"
+                  role="alert"
+                >
+                  {error}
+                </motion.p>
+              )}
             </div>
 
             {/* Powered by Valyu pill - below input */}

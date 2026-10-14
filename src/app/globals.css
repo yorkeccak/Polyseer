@@ -139,6 +139,27 @@
   animation: shake 0.5s ease-in-out;
 }
 
+/* Endless horizontal ticker: the track holds the list twice and shifts by one copy */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee var(--marquee-duration, 80s) linear infinite;
+}
+
+.group\/marquee:hover .animate-marquee,
+.group\/marquee:focus-within .animate-marquee {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+  }
+}
+
 /* Hide scrollbar but keep functionality */
 .scrollbar-hide {
   -ms-overflow-style: none;
